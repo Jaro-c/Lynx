@@ -380,7 +380,7 @@ fn verify_signature(binary: &[u8], sig_bytes: &[u8]) -> Result<()> {
         .context("Ed25519 signature invalid")
 }
 
-const RELEASE_VERIFY_KEY_B64: &str = "APh+kh61dJeT0HzG+KQXELzDjK4ccvqY9K+FptOZ3+Y=";
+const RELEASE_VERIFY_KEY_B64: &str = "HFv7vg5FCY7YyKUDbJhaQSfB9SboJGSblJtFbLmLHzM";
 
 fn load_release_verify_key() -> Result<[u8; 32]> {
     use base64ct::{Base64, Encoding};
