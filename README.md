@@ -1,31 +1,12 @@
-<div align="center">
-  <img src="lynx/dashboard/ui/public/logo.webp" alt="Lynx" width="140" /><br /><br />
+# Lynx
 
-  # Lynx
+Self-hosted VPS and container hosting panel: containers, firewall and a
+WireGuard VPN, managed from one dashboard across any number of servers. One
+binary per VPS, no Docker daemon required.
 
-  **Self-hosted VPS & container manager.**<br />
-  Containers · Firewall · VPN — from one dashboard, across any number of servers.
+[![CI — Dashboard](https://github.com/Glyndor/panel/actions/workflows/dashboard-server.yml/badge.svg)](https://github.com/Glyndor/panel/actions/workflows/dashboard-server.yml)
 
-  <br />
-
-  [![CI — Dashboard](https://github.com/Glyndor/panel/actions/workflows/dashboard-server.yml/badge.svg)](https://github.com/Glyndor/panel/actions/workflows/dashboard-server.yml)
-  ![Rust](https://img.shields.io/badge/Agent-Rust-orange?logo=rust)
-  ![Next.js](https://img.shields.io/badge/Dashboard-Next.js-black?logo=next.js)
-
-  <br />
-
-  [Install](#-install) · [Architecture](#-architecture) · [vs Alternatives](#-vs-alternatives) · [Security](#-security)
-
-</div>
-
----
-
-> **The cPanel/Plesk/Coolify alternative built for people who care about security.**  
-> One binary per VPS. All traffic encrypted over WireGuard. No SaaS. No cloud lock-in. No Docker daemon.
-
----
-
-## ✨ Features
+## Features
 
 **📦 Containers** — Podman rootless, per-organization isolation, survive VPS reboots without Lynx running  
 **🔥 Firewall** — Full nftables control from the dashboard, three-layer hierarchy, atomic apply, auto-restore on any tampering  
@@ -36,7 +17,7 @@
 
 ---
 
-## 🏗 Architecture
+## Architecture
 
 ```
 Dashboard VPS
@@ -89,7 +70,7 @@ Agent-2 never exposes public ports for the project. All traffic enters through A
 
 ---
 
-## ⚡ Install
+## Install
 
 ### Dashboard
 
@@ -124,23 +105,7 @@ The installer handles everything:
 
 ---
 
-## 🆚 vs Alternatives
-
-| | **Lynx** | Coolify | Dokploy | cPanel / Plesk |
-|---|---|---|---|---|
-| Container runtime | Podman (rootless) | Docker | Docker | varies |
-| Firewall management | ✅ Full nftables | ❌ | ❌ | Partial |
-| VPN between servers | ✅ WireGuard | ❌ | ❌ | ❌ |
-| Encryption at rest | ✅ AES-256 (pg_tde) | ❌ | ❌ | ❌ |
-| Per-user encryption | ✅ KEK/DEK | ❌ | ❌ | ❌ |
-| Signed binary updates | ✅ Ed25519 | ❌ | ❌ | ❌ |
-| Runtime dependencies | None | Docker Engine | Docker Engine | Heavy |
-| Pricing | Free / self-hosted | Free tier + paid | Free / self-hosted | Paid license |
-| SaaS / cloud | Never | Optional | Optional | Optional |
-
----
-
-## 🔐 Security
+## Security
 
 <details>
 <summary><strong>Transport &amp; cryptography</strong></summary>
@@ -174,7 +139,7 @@ the [security architecture](docs/security-architecture.md) for threat modeling.
 
 ---
 
-## 🛠 Development
+## Development
 
 Contribution model, branch flow and code style live in the
 [organization contributing guide](https://github.com/Glyndor/.github/blob/main/CONTRIBUTING.md).
@@ -238,11 +203,6 @@ Changes in these areas require local VMs — note in your PR which scenarios you
 
 ---
 
-## 📄 License
+## License
 
-[Apache-2.0](LICENSE) — © 2026 [Glyndor](https://github.com/Glyndor)
-
-<div align="center">
-  <br />
-  <sub>Made with ❤️ by <a href="https://github.com/Jaro-c">Jaroc</a></sub>
-</div>
+[Apache-2.0](LICENSE) — © 2026 Glyndor.
