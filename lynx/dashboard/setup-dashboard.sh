@@ -136,10 +136,10 @@ _cleanup_existing() {
     rm -rf /etc/lynx/secrets
 
     # Remove WireGuard interface
-    if ip link show wg-lynx-dash &>/dev/null; then
-        ip link delete wg-lynx-dash 2>/dev/null || true
+    if ip link show wg-helmly-dash &>/dev/null; then
+        ip link delete wg-helmly-dash 2>/dev/null || true
     fi
-    rm -f "$WG_DIR/wg-lynx-dash.conf"
+    rm -f "$WG_DIR/wg-helmly-dash.conf"
 
     # Remove systemd units
     systemctl disable --now lynx-dashboard-containers.service 2>/dev/null || true
@@ -819,7 +819,7 @@ log_info "Generating pepper..."
 _write_secret lynx-dashboard-pepper "$("$LB" gen-rand 32)"
 
 log_info "Generating JWT signing keypair (Ed25519)..."
-DASHBOARD_SIGN_PUBKEY_FILE="$LYNX_DIR/dashboard-sign-pubkey"
+DASHBOARD_SIGN_PUBKEY_FILE="/etc/glyndor/helmly/dashboard-sign-pubkey"
 DASHBOARD_SIGN_PUBKEY=""
 {
     KEYPAIR=$("$LB" gen-ed25519)
@@ -827,6 +827,11 @@ DASHBOARD_SIGN_PUBKEY=""
     DASHBOARD_SIGN_PUBKEY=$(printf '%s' "$KEYPAIR" | sed -n '2p')
     _write_secret lynx-dashboard-jwt-sign-private "$PRIV_SEED"
     _write_secret lynx-dashboard-jwt-sign-public "$DASHBOARD_SIGN_PUBKEY"
+    # Shared handoff dir with the agent (agent reads its command-signing trust
+    # anchor from here). The agent owns /etc/glyndor/helmly; create it if the
+    # dashboard runs first / stands alone so the public key can be dropped in.
+    mkdir -p /etc/glyndor/helmly
+    chmod 755 /etc/glyndor/helmly
     printf '%s' "$DASHBOARD_SIGN_PUBKEY" > "$DASHBOARD_SIGN_PUBKEY_FILE"
     chmod 644 "$DASHBOARD_SIGN_PUBKEY_FILE"
     PRIV_SEED=$("$LB" gen-rand 32)
@@ -1169,7 +1174,7 @@ done
 
 log_section "Setting up WireGuard tunnel (dashboard ↔ local agent)"
 
-WG_CONF="$WG_DIR/wg-lynx-dash.conf"
+WG_CONF="$WG_DIR/wg-helmly-dash.conf"
 
 DASHBOARD_PRIV=$(wg genkey)
 DASHBOARD_PUB=$(printf '%s' "$DASHBOARD_PRIV" | wg pubkey)
@@ -1197,9 +1202,9 @@ log_ok "WireGuard config written: ${WG_CONF}"
 log_ok "Dashboard WireGuard pubkey: ${DASHBOARD_PUB}"
 printf '%s' "$DASHBOARD_PUB" > "$LYNX_DIR/dashboard-wg-pubkey"
 
-wg-quick up wg-lynx-dash
-systemctl enable "wg-quick@wg-lynx-dash"
-log_ok "WireGuard interface up: wg-lynx-dash (10.100.0.1/16)"
+wg-quick up wg-helmly-dash
+systemctl enable "wg-quick@wg-helmly-dash"
+log_ok "WireGuard interface up: wg-helmly-dash (10.100.0.1/16)"
 
 # Ensure DNS from dashboard containers is accepted.
 # The agent binary (if already running from a prior install) regenerates
@@ -1488,8 +1493,8 @@ table inet helmly-agent {
         iifname "podman*" accept
 
         # Backend container traffic to/from WireGuard (dashboard <-> agents)
-        oifname "wg-lynx-dash" accept
-        iifname "wg-lynx-dash" accept
+        oifname "wg-helmly-dash" accept
+        iifname "wg-helmly-dash" accept
     }
 
     chain helmly-output {
