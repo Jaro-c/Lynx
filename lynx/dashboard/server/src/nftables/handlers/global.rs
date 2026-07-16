@@ -198,12 +198,12 @@ async fn push_both_chains(
 ) -> bool {
     let input_cmd = json!({
         "type": "nftables.apply",
-        "chain": "lynx-global",
+        "chain": "helmly-global",
         "rules": input_body,
     });
     let output_cmd = json!({
         "type": "nftables.apply",
-        "chain": "lynx-global-output",
+        "chain": "helmly-global-output",
         "rules": output_body,
     });
 

@@ -152,12 +152,12 @@ pub async fn push_local_rules(
 
     let input_cmd = json!({
         "type": "nftables.apply",
-        "chain": "lynx-local",
+        "chain": "helmly-local",
         "rules": input_body,
     });
     let output_cmd = json!({
         "type": "nftables.apply",
-        "chain": "lynx-local-output",
+        "chain": "helmly-local-output",
         "rules": output_body,
     });
 

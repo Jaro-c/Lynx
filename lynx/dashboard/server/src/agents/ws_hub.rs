@@ -536,7 +536,7 @@ pub async fn shutdown_notify_all(state: &AppState) {
 
 /// Push current global rules to an agent that has pending unsynced entries.
 /// Called on WS connect — catches up agents that were offline during a global push.
-/// Sends both input chain (lynx-global) and output chain (lynx-global-output).
+/// Sends both input chain (helmly-global) and output chain (helmly-global-output).
 async fn push_pending_global_sync(state: &AppState, agent_id: Uuid) {
     let has_pending = sqlx::query_scalar!(
         "SELECT 1 FROM global_rule_sync WHERE agent_id = $1 AND synced_at IS NULL LIMIT 1",
@@ -590,8 +590,8 @@ async fn push_pending_global_sync(state: &AppState, agent_id: Uuid) {
     };
 
     let (Ok(signed_in), Ok(signed_out)) = (
-        sign("lynx-global", &input_body),
-        sign("lynx-global-output", &output_body),
+        sign("helmly-global", &input_body),
+        sign("helmly-global-output", &output_body),
     ) else {
         tracing::warn!(agent_id = %agent_id, "pending_sync: sign failed");
         return;

@@ -151,7 +151,7 @@ _cleanup_existing() {
     # Flush nftables tables managed by the dashboard install
     nft delete table inet lynx-dashboard 2>/dev/null || true
     rm -f /etc/nftables-lynx-dashboard.conf
-    nft delete table inet lynx-agent 2>/dev/null || true
+    nft delete table inet helmly-agent 2>/dev/null || true
 
     rm -rf "$LYNX_DIR"
     log_ok "Cleanup complete"
@@ -204,7 +204,7 @@ log_info "Lynx manages containers via Podman and firewall via nftables."
 log_info "The following software is incompatible and will be removed if found:"
 log_info "  Docker / Docker Engine, containerd (standalone), firewalld, ufw, iptables (legacy)"
 log_info "Reason: these programs add their own firewall/network rules outside"
-log_info "        table inet lynx-agent, silently exposing ports Lynx considers closed."
+log_info "        table inet helmly-agent, silently exposing ports Lynx considers closed."
 
 _detect_distro() {
     if command -v apt-get &>/dev/null;   then echo "debian"
@@ -247,9 +247,9 @@ _check_remove() {
     fi
 }
 
-_REASON_DOCKER="manages own container network and firewall, bypasses lynx-agent nftables"
+_REASON_DOCKER="manages own container network and firewall, bypasses helmly-agent nftables"
 _REASON_CTR="manages own container network, conflicts with Podman network isolation"
-_REASON_FW="manages own firewall rules outside table inet lynx-agent"
+_REASON_FW="manages own firewall rules outside table inet helmly-agent"
 
 for pkg in docker-ce docker-ce-cli docker.io docker-compose-plugin moby-engine; do
     _check_remove "$pkg" "$_REASON_DOCKER"
@@ -271,7 +271,7 @@ _check_remove ufw       "$_REASON_FW"
 if $_incompatible_found; then
     # Delete all nftables tables created by Docker / ufw / iptables-nft.
     # On Ubuntu 24.04+, iptables is iptables-nft — its tables live in nftables
-    # ip/ip6 families. Delete them all so only table inet lynx-agent remains.
+    # ip/ip6 families. Delete them all so only table inet helmly-agent remains.
     for _nft_table in \
         "ip filter" "ip nat" "ip mangle" "ip raw" "ip security" \
         "ip6 filter" "ip6 nat" "ip6 mangle" "ip6 raw" "ip6 security" \
@@ -1203,26 +1203,26 @@ log_ok "WireGuard interface up: wg-lynx-dash (10.100.0.1/16)"
 
 # Ensure DNS from dashboard containers is accepted.
 # The agent binary (if already running from a prior install) regenerates
-# table inet lynx-agent on startup and omits the DNS accept rules from the
+# table inet helmly-agent on startup and omits the DNS accept rules from the
 # input chain — blocking aardvark-dns from dashboard containers.
 # Insert the rules BEFORE the trailing drop so they survive any dynamic
 # chain updates the agent makes during normal operation.
 _nft_ensure_container_dns() {
     # No-op if table/chain doesn't exist yet (first install, bootstrap applies it below)
-    nft list chain inet lynx-agent lynx-base &>/dev/null || return 0
+    nft list chain inet helmly-agent helmly-base &>/dev/null || return 0
     # If rules already present, skip
-    nft list chain inet lynx-agent lynx-base 2>/dev/null | grep -q 'iifname.*podman.*dport 53.*accept' && return 0
+    nft list chain inet helmly-agent helmly-base 2>/dev/null | grep -q 'iifname.*podman.*dport 53.*accept' && return 0
     # Insert just before the terminal drop rule — find its handle
     local drop_handle
-    drop_handle=$(nft -a list chain inet lynx-agent lynx-base 2>/dev/null | grep '^\s*drop' | grep -o 'handle [0-9]*' | head -1 | awk '{print $2}')
+    drop_handle=$(nft -a list chain inet helmly-agent helmly-base 2>/dev/null | grep '^\s*drop' | grep -o 'handle [0-9]*' | head -1 | awk '{print $2}')
     if [[ -n "$drop_handle" ]]; then
-        nft insert rule inet lynx-agent lynx-base handle "$drop_handle" iifname "podman*" udp dport 53 accept 2>/dev/null || true
-        nft insert rule inet lynx-agent lynx-base handle "$drop_handle" iifname "podman*" tcp dport 53 accept 2>/dev/null || true
+        nft insert rule inet helmly-agent helmly-base handle "$drop_handle" iifname "podman*" udp dport 53 accept 2>/dev/null || true
+        nft insert rule inet helmly-agent helmly-base handle "$drop_handle" iifname "podman*" tcp dport 53 accept 2>/dev/null || true
     else
-        nft add rule inet lynx-agent lynx-base iifname "podman*" udp dport 53 accept 2>/dev/null || true
-        nft add rule inet lynx-agent lynx-base iifname "podman*" tcp dport 53 accept 2>/dev/null || true
+        nft add rule inet helmly-agent helmly-base iifname "podman*" udp dport 53 accept 2>/dev/null || true
+        nft add rule inet helmly-agent helmly-base iifname "podman*" tcp dport 53 accept 2>/dev/null || true
     fi
-    log_ok "DNS rules injected into lynx-agent.lynx-base for container aardvark-dns"
+    log_ok "DNS rules injected into helmly-agent.helmly-base for container aardvark-dns"
 }
 _nft_ensure_container_dns
 
@@ -1424,11 +1424,11 @@ log_section "Configuring nftables"
 # nftables.service loads correct rules on every reboot.  The agent binary
 # overwrites this file on first startup — this is only the boot-window ruleset
 # that runs before lynx-agent.service has started.
-cat > /etc/nftables-lynx-agent.conf << 'EOF'
-destroy table inet lynx-agent
-add table inet lynx-agent
-table inet lynx-agent {
-    chain lynx-base {
+cat > /etc/nftables-helmly-agent.conf << 'EOF'
+destroy table inet helmly-agent
+add table inet helmly-agent
+table inet helmly-agent {
+    chain helmly-base {
         type filter hook input priority 0; policy drop;
 
         iif lo accept
@@ -1466,17 +1466,17 @@ table inet lynx-agent {
         # Dashboard WireGuard interface can reach itself
         ip saddr 10.100.0.1 accept
 
-        jump lynx-global
-        jump lynx-local
+        jump helmly-global
+        jump helmly-local
 
         drop
     }
 
     # These chains are populated by the Rust agent after startup
-    chain lynx-global {}
-    chain lynx-local {}
+    chain helmly-global {}
+    chain helmly-local {}
 
-    chain lynx-forward {
+    chain helmly-forward {
         type filter hook forward priority 0; policy drop;
 
         ct state established,related accept
@@ -1492,18 +1492,18 @@ table inet lynx-agent {
         iifname "wg-lynx-dash" accept
     }
 
-    chain lynx-output {
+    chain helmly-output {
         type filter hook output priority 0; policy accept;
     }
 }
 EOF
 
 # Apply bootstrap ruleset
-nft -f /etc/nftables-lynx-agent.conf
+nft -f /etc/nftables-helmly-agent.conf
 log_ok "nftables rules applied (ports: 22 rate-limited, 19443, 51820 UDP)"
 
-# Dashboard-specific nftables table — separate from table inet lynx-agent so the
-# agent binary never overwrites these rules. The agent manages only lynx-agent;
+# Dashboard-specific nftables table — separate from table inet helmly-agent so the
+# agent binary never overwrites these rules. The agent manages only helmly-agent;
 # this table persists across agent nftables reloads.
 # Without this, aardvark-dns (on podman* bridges) is unreachable from containers
 # after the agent binary starts and re-renders its ruleset without DNS accept rules.
@@ -1524,8 +1524,8 @@ log_ok "Dashboard nftables (container DNS) applied"
 # Persist across reboots — migrate away from old lynx-dashboard include
 if [[ -f /etc/nftables.conf ]]; then
     sed -i '/nftables-lynx-dashboard/d' /etc/nftables.conf
-    if ! grep -q "nftables-lynx-agent" /etc/nftables.conf; then
-        echo 'include "/etc/nftables-lynx-agent.conf"' >> /etc/nftables.conf
+    if ! grep -q "nftables-helmly-agent" /etc/nftables.conf; then
+        echo 'include "/etc/nftables-helmly-agent.conf"' >> /etc/nftables.conf
     fi
     if ! grep -q "nftables-lynx-dashboard" /etc/nftables.conf; then
         echo 'include "/etc/nftables-lynx-dashboard.conf"' >> /etc/nftables.conf
