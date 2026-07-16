@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 const DASHBOARD_REPO: &str = "Glyndor/panel";
-const AGENT_REPO: &str = "Glyndor/panel-agent";
+const AGENT_REPO: &str = "Glyndor/helmly-agent";
 
 #[derive(Debug, Serialize)]
 pub struct UpdateCheckResponse {
@@ -132,10 +132,10 @@ pub async fn trigger_update(
 
     for agent in &agents {
         let download_url = format!(
-            "https://github.com/{AGENT_REPO}/releases/download/v{agent_version}/lynx-agent-linux-x86_64"
+            "https://github.com/{AGENT_REPO}/releases/download/v{agent_version}/helmly-agent-linux-x86_64"
         );
         let sig_url = format!(
-            "https://github.com/{AGENT_REPO}/releases/download/v{agent_version}/lynx-agent-linux-x86_64.sig"
+            "https://github.com/{AGENT_REPO}/releases/download/v{agent_version}/helmly-agent-linux-x86_64.sig"
         );
 
         let command = serde_json::json!({

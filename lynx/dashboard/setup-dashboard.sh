@@ -1428,7 +1428,7 @@ log_section "Configuring nftables"
 # Bootstrap ruleset uses the same table/chain names as the Rust agent binary so
 # nftables.service loads correct rules on every reboot.  The agent binary
 # overwrites this file on first startup — this is only the boot-window ruleset
-# that runs before lynx-agent.service has started.
+# that runs before helmly-agent.service has started.
 cat > /etc/nftables-helmly-agent.conf << 'EOF'
 destroy table inet helmly-agent
 add table inet helmly-agent
@@ -1548,8 +1548,8 @@ log_section "Enabling container auto-start on reboot"
 cat > /etc/systemd/system/lynx-dashboard-containers.service << 'EOF'
 [Unit]
 Description=Lynx Dashboard — start containers on boot
-After=network-online.target nftables.service lynx-agent.service
-Wants=network-online.target lynx-agent.service
+After=network-online.target nftables.service helmly-agent.service
+Wants=network-online.target helmly-agent.service
 
 [Service]
 Type=oneshot
