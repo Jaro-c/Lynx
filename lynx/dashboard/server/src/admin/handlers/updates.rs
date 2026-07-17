@@ -155,7 +155,7 @@ pub async fn trigger_update(
             .post(&url)
             .header(
                 "Authorization",
-                format!("Bearer {}", &*state.config.internal_token),
+                format!("Bearer {}", *state.config.internal_token),
             )
             .json(&signed)
             .send()

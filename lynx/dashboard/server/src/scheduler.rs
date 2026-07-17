@@ -201,7 +201,7 @@ async fn dispatch_updates_if_needed(state: &AppState, latest: &str) {
             .post(&url)
             .header(
                 "Authorization",
-                format!("Bearer {}", &*state.config.internal_token),
+                format!("Bearer {}", *state.config.internal_token),
             )
             .json(&signed)
             .send()
