@@ -148,7 +148,7 @@ pub async fn rotate_wireguard_psks(state: &AppState, triggered_by: Uuid) -> Resu
         let psk_update = std::process::Command::new("wg")
             .args([
                 "set",
-                "wg-lynx-dash",
+                "wg-helmly-dash",
                 "peer",
                 &agent.wg_pubkey,
                 "preshared-key",
@@ -237,7 +237,7 @@ async fn rotate_agent_certs(state: &AppState) -> Result<(), AppError> {
                 .post(&url)
                 .header(
                     "Authorization",
-                    format!("Bearer {}", &*state.config.internal_token),
+                    format!("Bearer {}", *state.config.internal_token),
                 )
                 .json(&signed)
                 .send()
@@ -277,7 +277,7 @@ pub async fn rotate_pg_app_password(state: &AppState) -> Result<(), AppError> {
     // new_pass is hex [0-9a-f] so "$$" can never appear inside it.
     sqlx::query(&format!(
         "ALTER USER lynx_dashboard_app PASSWORD $${}$$",
-        &*new_pass
+        *new_pass
     ))
     .execute(&state.db)
     .await
@@ -431,7 +431,7 @@ pub async fn rotate_expiring_certs(state: &AppState, threshold_days: i64) -> Res
             .post(&url)
             .header(
                 "Authorization",
-                format!("Bearer {}", &*state.config.internal_token),
+                format!("Bearer {}", *state.config.internal_token),
             )
             .json(&signed)
             .send()

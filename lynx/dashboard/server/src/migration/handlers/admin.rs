@@ -272,7 +272,7 @@ async fn notify_agents_migrate(
             let url = format!("https://{}:{}/cmd", agent.wg_ip, agent.api_port);
             let _ = http
                 .post(&url)
-                .header("Authorization", format!("Bearer {}", &*cfg.internal_token))
+                .header("Authorization", format!("Bearer {}", *cfg.internal_token))
                 .json(&signed)
                 .send()
                 .await;

@@ -5,8 +5,8 @@ use uuid::Uuid;
 
 const DASHBOARD_REPO: &str = "Glyndor/panel";
 const DASHBOARD_API_RELEASES: &str = "https://api.github.com/repos/Glyndor/panel/releases";
-const AGENT_REPO: &str = "Glyndor/panel-agent";
-const AGENT_API_RELEASES: &str = "https://api.github.com/repos/Glyndor/panel-agent/releases";
+const AGENT_REPO: &str = "Glyndor/helmly-agent";
+const AGENT_API_RELEASES: &str = "https://api.github.com/repos/Glyndor/helmly-agent/releases";
 
 const CHECK_INTERVAL_SECS: u64 = 3600;
 const ROTATION_INTERVAL_DAYS: i64 = 90;
@@ -175,10 +175,10 @@ async fn dispatch_updates_if_needed(state: &AppState, latest: &str) {
     for agent in &outdated {
         let arch = agent.arch.as_deref().unwrap_or("x86_64");
         let download_url = format!(
-            "https://github.com/{AGENT_REPO}/releases/download/v{latest}/lynx-agent-linux-{arch}"
+            "https://github.com/{AGENT_REPO}/releases/download/v{latest}/helmly-agent-linux-{arch}"
         );
         let sig_url = format!(
-            "https://github.com/{AGENT_REPO}/releases/download/v{latest}/lynx-agent-linux-{arch}.sig"
+            "https://github.com/{AGENT_REPO}/releases/download/v{latest}/helmly-agent-linux-{arch}.sig"
         );
         let command = serde_json::json!({
             "type": "update.self",
@@ -201,7 +201,7 @@ async fn dispatch_updates_if_needed(state: &AppState, latest: &str) {
             .post(&url)
             .header(
                 "Authorization",
-                format!("Bearer {}", &*state.config.internal_token),
+                format!("Bearer {}", *state.config.internal_token),
             )
             .json(&signed)
             .send()

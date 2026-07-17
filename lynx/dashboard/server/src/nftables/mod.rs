@@ -40,7 +40,7 @@ pub struct CreateRuleRequest {
     pub direction: Option<String>,
 }
 
-/// Convert a list of NftRules into the body of the input chain (lynx-global / lynx-local).
+/// Convert a list of NftRules into the body of the input chain (helmly-global / helmly-local).
 /// Filters to direction = 'input', sorted by priority.
 pub fn rules_to_nft_chain(rules: &[NftRule]) -> String {
     let mut sorted: Vec<&NftRule> = rules
@@ -57,7 +57,7 @@ pub fn rules_to_nft_chain(rules: &[NftRule]) -> String {
         .join("\n")
 }
 
-/// Convert a list of NftRules into the body of the output chain (lynx-global-output / lynx-local-output).
+/// Convert a list of NftRules into the body of the output chain (helmly-global-output / helmly-local-output).
 /// Filters to direction = 'output', sorted by priority.
 pub fn rules_to_nft_output_chain(rules: &[NftRule]) -> String {
     let mut sorted: Vec<&NftRule> = rules
