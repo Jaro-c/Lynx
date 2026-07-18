@@ -2,7 +2,7 @@
 dev/
 
 # Rust build artifacts
-lynx/target/
+internal/target/
 target/
 *.rs.bk
 
@@ -34,3 +34,6 @@ target/
 .continue/
 .playwright-mcp/
 **/*-mcp/
+AGENTS.md
+CLAUDE.md
+GEMINI.md

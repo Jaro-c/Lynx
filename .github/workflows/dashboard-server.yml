@@ -4,16 +4,16 @@ on:
   push:
     branches: [main, develop]
     paths:
-      - "lynx/dashboard/server/**"
-      - "lynx/Cargo.toml"
-      - "lynx/Cargo.lock"
+      - "internal/dashboard/server/**"
+      - "internal/Cargo.toml"
+      - "internal/Cargo.lock"
       - ".github/workflows/dashboard-server.yml"
   pull_request:
     branches: [main, develop]
     paths:
-      - "lynx/dashboard/server/**"
-      - "lynx/Cargo.toml"
-      - "lynx/Cargo.lock"
+      - "internal/dashboard/server/**"
+      - "internal/Cargo.toml"
+      - "internal/Cargo.lock"
       - ".github/workflows/dashboard-server.yml"
 
 permissions:
@@ -23,7 +23,7 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  DATABASE_URL: postgres://lynx_ci:lynx_ci@localhost:5432/lynx_ci
+  DATABASE_URL: postgres://helmly_ci:helmly_ci@localhost:5432/helmly_ci
 
 jobs:
   fmt:
@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: lynx
+        working-directory: internal
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -41,7 +41,7 @@ jobs:
           rustup default stable
 
       - name: fmt
-        run: cargo fmt --package lynx-dashboard-server -- --check
+        run: cargo fmt --package helmly-dashboard-server -- --check
 
   audit-urls:
     name: Audit download URLs
@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: lynx
+        working-directory: internal
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -77,14 +77,14 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: lynx
+        working-directory: internal
     services:
       postgres:
         image: postgres:18-alpine
         env:
-          POSTGRES_USER: lynx_ci
-          POSTGRES_PASSWORD: lynx_ci
-          POSTGRES_DB: lynx_ci
+          POSTGRES_USER: helmly_ci
+          POSTGRES_PASSWORD: helmly_ci
+          POSTGRES_DB: helmly_ci
         ports:
           - 5432:5432
         options: >-
@@ -106,7 +106,7 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            lynx/target
+            internal/target
           key: rust-${{ github.job }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: rust-${{ github.job }}-${{ runner.os }}-
 
@@ -117,24 +117,24 @@ jobs:
         run: sqlx migrate run --source dashboard/server/migrations
 
       - name: check
-        run: cargo check --package lynx-dashboard-server
+        run: cargo check --package helmly-dashboard-server
 
       - name: clippy
-        run: cargo clippy --package lynx-dashboard-server -- -D warnings
+        run: cargo clippy --package helmly-dashboard-server -- -D warnings
 
   test:
     name: Test
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: lynx
+        working-directory: internal
     services:
       postgres:
         image: postgres:18-alpine
         env:
-          POSTGRES_USER: lynx_ci
-          POSTGRES_PASSWORD: lynx_ci
-          POSTGRES_DB: lynx_ci
+          POSTGRES_USER: helmly_ci
+          POSTGRES_PASSWORD: helmly_ci
+          POSTGRES_DB: helmly_ci
         ports:
           - 5432:5432
         options: >-
@@ -165,7 +165,7 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            lynx/target
+            internal/target
           key: rust-${{ github.job }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: rust-${{ github.job }}-${{ runner.os }}-
 
@@ -175,10 +175,10 @@ jobs:
       - name: Run migrations
         run: sqlx migrate run --source dashboard/server/migrations
         env:
-          DATABASE_URL: postgres://lynx_ci:lynx_ci@localhost:5432/lynx_ci
+          DATABASE_URL: postgres://helmly_ci:helmly_ci@localhost:5432/helmly_ci
 
       - name: test
-        run: cargo test --package lynx-dashboard-server -- --test-threads=1
+        run: cargo test --package helmly-dashboard-server -- --test-threads=1
         env:
-          DATABASE_URL: postgres://lynx_ci:lynx_ci@localhost:5432/lynx_ci
+          DATABASE_URL: postgres://helmly_ci:helmly_ci@localhost:5432/helmly_ci
           REDIS_URL: redis://localhost:6379

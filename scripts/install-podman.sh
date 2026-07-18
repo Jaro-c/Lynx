@@ -2,7 +2,7 @@
 # =============================================================================
 # install-podman.sh
 # =============================================================================
-# Description: Installs Podman as the container runtime for Lynx.
+# Description: Installs Podman as the container runtime for Helmly.
 #              Configures registries, storage, logging (journald) and image policy.
 #              Enables the Podman socket for API compatibility.
 #
@@ -19,7 +19,7 @@ install_podman() {
     if command -v podman &>/dev/null; then
         EXISTING_VERSION=$(podman --version)
         echo -e "${YELLOW}Podman already installed: ${BOLD}${EXISTING_VERSION}${RESET}"
-        echo -e "${CYAN}Skipping installation, applying Lynx configuration...${RESET}"
+        echo -e "${CYAN}Skipping installation, applying Helmly configuration...${RESET}"
     else
         # Update package index without eval — use PKG_MANAGER directly.
         case "$PKG_MANAGER" in
@@ -59,7 +59,7 @@ install_podman() {
     echo -e "${CYAN}Configuring Podman registries...${RESET}"
     mkdir -p /etc/containers
     cat > /etc/containers/registries.conf <<'EOF'
-# Lynx — Podman registry configuration
+# Helmly — Podman registry configuration
 # Base registries — organizations can add private registries via the dashboard.
 
 unqualified-search-registries = ["docker.io", "ghcr.io", "quay.io"]
@@ -82,15 +82,15 @@ EOF
     # Storage
     # -----------------------------------------------------------------------------
     echo -e "${CYAN}Configuring Podman storage...${RESET}"
-    mkdir -p /opt/lynx/storage
+    mkdir -p /opt/glyndor/helmly/storage
     cat > /etc/containers/storage.conf <<'EOF'
-# Lynx — Podman storage configuration
+# Helmly — Podman storage configuration
 # Dedicated storage path to avoid filling the system root disk.
 
 [storage]
 driver = "overlay"
 runroot = "/run/containers/storage"
-graphroot = "/opt/lynx/storage"
+graphroot = "/opt/glyndor/helmly/storage"
 
 [storage.options]
 additionalimagestores = []
@@ -98,15 +98,15 @@ additionalimagestores = []
 [storage.options.overlay]
 mountopt = "nodev,metacopy=on"
 EOF
-    echo -e "${GREEN}Storage configured at: /opt/lynx/storage${RESET}"
+    echo -e "${GREEN}Storage configured at: /opt/glyndor/helmly/storage${RESET}"
 
     # -----------------------------------------------------------------------------
     # Logging
     # -----------------------------------------------------------------------------
     echo -e "${CYAN}Configuring Podman logging...${RESET}"
     cat > /etc/containers/containers.conf <<'EOF'
-# Lynx — Podman containers configuration
-# Logs go to journald so the Lynx dashboard can read them via systemd.
+# Helmly — Podman containers configuration
+# Logs go to journald so the Helmly dashboard can read them via systemd.
 
 [containers]
 log_driver = "journald"

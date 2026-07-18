@@ -1,4 +1,4 @@
-# Lynx
+# Helmly
 
 Self-hosted VPS and container hosting panel: containers, firewall and a
 WireGuard VPN, managed from one dashboard across any number of servers. One
@@ -8,7 +8,7 @@ binary per VPS, no Docker daemon required.
 
 ## Features
 
-**📦 Containers** — Podman rootless, per-organization isolation, survive VPS reboots without Lynx running  
+**📦 Containers** — Podman rootless, per-organization isolation, survive VPS reboots without Helmly running  
 **🔥 Firewall** — Full nftables control from the dashboard, three-layer hierarchy, atomic apply, auto-restore on any tampering  
 **🔒 Networking** — All dashboard → agent traffic over WireGuard + mTLS. Cross-VPS scaling via direct agent tunnels — no relay through dashboard  
 **🔑 Encryption** — PostgreSQL AES-256 at rest (pg_tde) + per-user envelope encryption (KEK/DEK)  
@@ -37,16 +37,16 @@ Each agent connects to the dashboard over a **1:1 WireGuard tunnel** with its ow
 <br />
 
 ```
-table inet lynx-agent {
-    chain lynx-base    ← Lynx invariants. Never editable. Auto-restored instantly on any change.
-    chain lynx-global  ← Rules pushed to ALL agents simultaneously
-    chain lynx-local   ← Per-VPS rules for this agent only
+table inet helmly-agent {
+    chain helmly-base    ← Helmly invariants. Never editable. Auto-restored instantly on any change.
+    chain helmly-global  ← Rules pushed to ALL agents simultaneously
+    chain helmly-local   ← Per-VPS rules for this agent only
 }
 ```
 
-- **`lynx-base`** — default deny, WireGuard allowlist, inter-org isolation, anti-spoofing
-- **`lynx-global`** — IP blocklists, protocol restrictions — propagated to all agents in parallel; agents offline receive pending rules on reconnect
-- **`lynx-local`** — per-VPS port rules, IP allowlists
+- **`helmly-base`** — default deny, WireGuard allowlist, inter-org isolation, anti-spoofing
+- **`helmly-global`** — IP blocklists, protocol restrictions — propagated to all agents in parallel; agents offline receive pending rules on reconnect
+- **`helmly-local`** — per-VPS port rules, IP allowlists
 
 </details>
 
@@ -57,7 +57,7 @@ table inet lynx-agent {
 ```
 Internet → 80/443
     ↓
-lynx-nginx (Agent-1, entry point)
+helmly-nginx (Agent-1, entry point)
     ├── replica:1  (Agent-1, local Podman network)
     └── WireGuard ──► Agent-2
                           ├── replica:2
@@ -148,18 +148,18 @@ Repo-specific setup:
 **Dashboard backend (Rust):**
 
 ```bash
-cd lynx
-SQLX_OFFLINE=true cargo build -p lynx-dashboard-server
-SQLX_OFFLINE=true cargo test -p lynx-dashboard-server
+cd internal
+SQLX_OFFLINE=true cargo build -p helmly-dashboard-server
+SQLX_OFFLINE=true cargo test -p helmly-dashboard-server
 ```
 
 `sqlx` compile-time checks use the committed `.sqlx` cache. To run against a
-real database, see `lynx/dashboard/server/.env` and start PostgreSQL locally.
+real database, see `internal/dashboard/server/.env` and start PostgreSQL locally.
 
 **Dashboard frontend (Next.js):**
 
 ```bash
-cd lynx/dashboard/ui
+cd internal/dashboard/ui
 bun install
 bun dev
 ```

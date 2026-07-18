@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Lynx Installer
+# Helmly Installer
 # =============================================================================
-# Description: Master orchestrator for installing Lynx components.
+# Description: Master orchestrator for installing Helmly components.
 #              Supports Dashboard and Agent installation.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/Glyndor/panel/main/install.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/Glyndor/helmly/main/install.sh | sudo bash
 #   sudo bash install.sh
 #
 # Requirements:
@@ -34,7 +34,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # -----------------------------------------------------------------------------
 if [[ "$EUID" -ne 0 ]]; then
     echo -e "${RED}Error: this script must be run as root.${RESET}" >&2
-    echo -e "${YELLOW}Use: curl -fsSL https://raw.githubusercontent.com/Glyndor/panel/main/install.sh | sudo bash${RESET}" >&2
+    echo -e "${YELLOW}Use: curl -fsSL https://raw.githubusercontent.com/Glyndor/helmly/main/install.sh | sudo bash${RESET}" >&2
     exit 1
 fi
 
@@ -49,10 +49,10 @@ echo
 # -----------------------------------------------------------------------------
 # Menu
 # -----------------------------------------------------------------------------
-echo -e "${BOLD}${CYAN}Lynx Installer${RESET}"
+echo -e "${BOLD}${CYAN}Helmly Installer${RESET}"
 echo -e "Select what to install:\n"
-echo -e "  ${BOLD}1)${RESET} Dashboard — installs the Lynx dashboard on this VPS"
-echo -e "  ${BOLD}2)${RESET} Agent     — installs the Lynx agent on this VPS"
+echo -e "  ${BOLD}1)${RESET} Dashboard — installs the Helmly dashboard on this VPS"
+echo -e "  ${BOLD}2)${RESET} Agent     — installs the Helmly agent on this VPS"
 echo
 
 read -rp "Option [1/2] (default: 1): " OPTION
@@ -99,13 +99,13 @@ case "$OPTION" in
         fi
 
         if [[ "$OPTION" == "1" ]]; then
-            exec "$SCRIPT_DIR/lynx/dashboard/setup-dashboard.sh"
+            exec "$SCRIPT_DIR/internal/dashboard/setup-dashboard.sh"
         else
             # The agent lives in its own repository since the extraction —
             # fetch its installer and hand over to it.
-            AGENT_SETUP_URL="https://raw.githubusercontent.com/Glyndor/panel-agent/main/setup-agent.sh"
+            AGENT_SETUP_URL="https://raw.githubusercontent.com/Glyndor/helmly-agent/main/setup-agent.sh"
             AGENT_SETUP_TMP="$(mktemp /tmp/setup-agent.XXXXXX.sh)"
-            echo -e "${CYAN}Fetching agent installer from Glyndor/panel-agent...${RESET}"
+            echo -e "${CYAN}Fetching agent installer from Glyndor/helmly-agent...${RESET}"
             if ! curl -fsSL --max-time 60 "$AGENT_SETUP_URL" -o "$AGENT_SETUP_TMP"; then
                 echo -e "${RED}Failed to download the agent installer from ${AGENT_SETUP_URL}${RESET}" >&2
                 rm -f "$AGENT_SETUP_TMP"

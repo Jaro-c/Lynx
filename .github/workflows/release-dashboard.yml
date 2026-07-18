@@ -22,9 +22,9 @@ jobs:
       postgres:
         image: postgres:18-alpine
         env:
-          POSTGRES_USER: lynx_ci
-          POSTGRES_PASSWORD: lynx_ci
-          POSTGRES_DB: lynx_ci
+          POSTGRES_USER: helmly_ci
+          POSTGRES_PASSWORD: helmly_ci
+          POSTGRES_DB: helmly_ci
         ports:
           - 5432:5432
         options: >-
@@ -35,7 +35,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: lynx
+        working-directory: internal
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -51,7 +51,7 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            lynx/target
+            internal/target
           key: rust-${{ github.job }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: rust-${{ github.job }}-${{ runner.os }}-
 
@@ -60,13 +60,13 @@ jobs:
 
       - name: Run migrations
         env:
-          DATABASE_URL: postgres://lynx_ci:lynx_ci@localhost:5432/lynx_ci
+          DATABASE_URL: postgres://helmly_ci:helmly_ci@localhost:5432/helmly_ci
         run: sqlx migrate run --source dashboard/server/migrations
 
       - name: Verify sqlx cache is up-to-date
-        working-directory: lynx/dashboard/server
+        working-directory: internal/dashboard/server
         env:
-          DATABASE_URL: postgres://lynx_ci:lynx_ci@localhost:5432/lynx_ci
+          DATABASE_URL: postgres://helmly_ci:helmly_ci@localhost:5432/helmly_ci
         run: cargo sqlx prepare --check
 
   ci-server:
@@ -77,9 +77,9 @@ jobs:
       postgres:
         image: postgres:18-alpine
         env:
-          POSTGRES_USER: lynx_ci
-          POSTGRES_PASSWORD: lynx_ci
-          POSTGRES_DB: lynx_ci
+          POSTGRES_USER: helmly_ci
+          POSTGRES_PASSWORD: helmly_ci
+          POSTGRES_DB: helmly_ci
         ports:
           - 5432:5432
         options: >-
@@ -99,12 +99,12 @@ jobs:
 
     defaults:
       run:
-        working-directory: lynx
+        working-directory: internal
 
     env:
       CARGO_TERM_COLOR: always
       RUST_BACKTRACE: 1
-      DATABASE_URL: postgres://lynx_ci:lynx_ci@localhost:5432/lynx_ci
+      DATABASE_URL: postgres://helmly_ci:helmly_ci@localhost:5432/helmly_ci
       REDIS_URL: redis://localhost:6379
 
     steps:
@@ -121,7 +121,7 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            lynx/target
+            internal/target
           key: rust-${{ github.job }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: rust-${{ github.job }}-${{ runner.os }}-
 
@@ -135,13 +135,13 @@ jobs:
         run: sqlx migrate run --source dashboard/server/migrations
 
       - name: fmt
-        run: cargo fmt --package lynx-dashboard-server -- --check
+        run: cargo fmt --package helmly-dashboard-server -- --check
 
       - name: clippy
-        run: cargo clippy --package lynx-dashboard-server -- -D warnings
+        run: cargo clippy --package helmly-dashboard-server -- -D warnings
 
       - name: test
-        run: cargo test --package lynx-dashboard-server -- --test-threads=1
+        run: cargo test --package helmly-dashboard-server -- --test-threads=1
 
       - name: audit
         run: cargo audit --ignore RUSTSEC-2023-0071
@@ -152,7 +152,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: lynx/dashboard/ui
+        working-directory: internal/dashboard/ui
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -195,7 +195,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: lynx
+        working-directory: internal
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -214,7 +214,7 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            lynx/target
+            internal/target
           key: rust-${{ github.job }}-${{ matrix.arch }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: rust-${{ github.job }}-${{ matrix.arch }}-${{ runner.os }}-
 
@@ -237,11 +237,11 @@ jobs:
         run: |
           if [ "${{ matrix.use_cross }}" = "true" ]; then
             cross build --release \
-              --package lynx-dashboard-server \
+              --package helmly-dashboard-server \
               --target ${{ matrix.rust-target }}
           else
             cargo build --release \
-              --package lynx-dashboard-server \
+              --package helmly-dashboard-server \
               --target ${{ matrix.rust-target }}
           fi
         env:
@@ -253,8 +253,8 @@ jobs:
           GLYNDOR_RELEASE_ED25519_KEY: ${{ secrets.GLYNDOR_RELEASE_ED25519_KEY }}
         run: |
           pip install --quiet cryptography
-          BINARY="lynx/target/${{ matrix.rust-target }}/release/lynx-dashboard-server"
-          ARTIFACT="lynx-dashboard-backend-linux-${{ matrix.arch }}"
+          BINARY="internal/target/${{ matrix.rust-target }}/release/helmly-dashboard-server"
+          ARTIFACT="helmly-dashboard-backend-linux-${{ matrix.arch }}"
           cp "$BINARY" "$ARTIFACT"
           python3 .github/scripts/sign.py "$GLYNDOR_RELEASE_ED25519_KEY" "$ARTIFACT"
 
@@ -266,23 +266,23 @@ jobs:
           echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
 
       - name: Install frontend deps
-        working-directory: lynx/dashboard/ui
+        working-directory: internal/dashboard/ui
         run: bun install --frozen-lockfile
 
       - name: Build Next.js (standalone)
-        working-directory: lynx/dashboard/ui
+        working-directory: internal/dashboard/ui
         run: bun run build
         env:
           NEXT_TELEMETRY_DISABLED: "1"
 
       - name: Copy static assets into standalone
-        working-directory: lynx/dashboard/ui
+        working-directory: internal/dashboard/ui
         run: |
           cp -r .next/static .next/standalone/.next/static
           cp -r public .next/standalone/public
 
       - name: Patch server.js for portable __dirname
-        working-directory: lynx/dashboard/ui
+        working-directory: internal/dashboard/ui
         run: |
           # bun --compile embeds the compile-time __dirname (CI path) into the binary.
           # At runtime on the deployment server that path does not exist, causing chdir to fail.
@@ -300,7 +300,7 @@ jobs:
           "
 
       - name: Compile standalone binary
-        working-directory: lynx/dashboard/ui
+        working-directory: internal/dashboard/ui
         run: |
           # --packages=external + --compile-autoload-package-json: packages are resolved from the
           # filesystem at runtime. The binary must be deployed alongside the standalone directory
@@ -311,14 +311,14 @@ jobs:
             --packages=external \
             --compile-autoload-package-json \
             .next/standalone/server.js \
-            --outfile "lynx-dashboard-frontend-linux-${{ matrix.arch }}"
+            --outfile "helmly-dashboard-frontend-linux-${{ matrix.arch }}"
 
       - name: Bundle static assets
-        working-directory: lynx/dashboard/ui
+        working-directory: internal/dashboard/ui
         run: |
           # Full standalone: node_modules/ + .next/ (server chunks + static + manifests) + public/
           # Binary must be extracted into this same directory at deployment time.
-          TARBALL="lynx-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz"
+          TARBALL="helmly-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz"
           tar -czf "$TARBALL" -C .next/standalone .
           echo "assets tarball: $(du -sh "$TARBALL" | cut -f1)"
 
@@ -327,10 +327,10 @@ jobs:
         env:
           GLYNDOR_RELEASE_ED25519_KEY: ${{ secrets.GLYNDOR_RELEASE_ED25519_KEY }}
         run: |
-          cp "lynx/dashboard/ui/lynx-dashboard-frontend-linux-${{ matrix.arch }}" .
-          cp "lynx/dashboard/ui/lynx-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz" .
-          BIN="lynx-dashboard-frontend-linux-${{ matrix.arch }}"
-          ASSETS="lynx-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz"
+          cp "internal/dashboard/ui/helmly-dashboard-frontend-linux-${{ matrix.arch }}" .
+          cp "internal/dashboard/ui/helmly-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz" .
+          BIN="helmly-dashboard-frontend-linux-${{ matrix.arch }}"
+          ASSETS="helmly-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz"
           python3 .github/scripts/sign.py "$GLYNDOR_RELEASE_ED25519_KEY" "$BIN"
           python3 .github/scripts/sign.py "$GLYNDOR_RELEASE_ED25519_KEY" "$ASSETS"
 
@@ -341,12 +341,12 @@ jobs:
         with:
           name: dashboard-${{ matrix.arch }}
           path: |
-            lynx-dashboard-backend-linux-${{ matrix.arch }}
-            lynx-dashboard-backend-linux-${{ matrix.arch }}.sig
-            lynx-dashboard-frontend-linux-${{ matrix.arch }}
-            lynx-dashboard-frontend-linux-${{ matrix.arch }}.sig
-            lynx-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz
-            lynx-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz.sig
+            helmly-dashboard-backend-linux-${{ matrix.arch }}
+            helmly-dashboard-backend-linux-${{ matrix.arch }}.sig
+            helmly-dashboard-frontend-linux-${{ matrix.arch }}
+            helmly-dashboard-frontend-linux-${{ matrix.arch }}.sig
+            helmly-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz
+            helmly-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz.sig
           retention-days: 1
 
   release:
@@ -368,15 +368,15 @@ jobs:
         run: |
           gh release create "$TAG" \
             --generate-notes \
-            lynx-dashboard-backend-linux-x86_64 \
-            lynx-dashboard-backend-linux-x86_64.sig \
-            lynx-dashboard-backend-linux-arm64 \
-            lynx-dashboard-backend-linux-arm64.sig \
-            lynx-dashboard-frontend-linux-x86_64 \
-            lynx-dashboard-frontend-linux-x86_64.sig \
-            "lynx-dashboard-frontend-assets-linux-x86_64.tar.gz" \
-            "lynx-dashboard-frontend-assets-linux-x86_64.tar.gz.sig" \
-            lynx-dashboard-frontend-linux-arm64 \
-            lynx-dashboard-frontend-linux-arm64.sig \
-            "lynx-dashboard-frontend-assets-linux-arm64.tar.gz" \
-            "lynx-dashboard-frontend-assets-linux-arm64.tar.gz.sig"
+            helmly-dashboard-backend-linux-x86_64 \
+            helmly-dashboard-backend-linux-x86_64.sig \
+            helmly-dashboard-backend-linux-arm64 \
+            helmly-dashboard-backend-linux-arm64.sig \
+            helmly-dashboard-frontend-linux-x86_64 \
+            helmly-dashboard-frontend-linux-x86_64.sig \
+            "helmly-dashboard-frontend-assets-linux-x86_64.tar.gz" \
+            "helmly-dashboard-frontend-assets-linux-x86_64.tar.gz.sig" \
+            helmly-dashboard-frontend-linux-arm64 \
+            helmly-dashboard-frontend-linux-arm64.sig \
+            "helmly-dashboard-frontend-assets-linux-arm64.tar.gz" \
+            "helmly-dashboard-frontend-assets-linux-arm64.tar.gz.sig"

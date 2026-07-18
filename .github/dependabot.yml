@@ -12,7 +12,7 @@ updates:
     target-branch: "develop"
 
   - package-ecosystem: "cargo"
-    directory: "/lynx"
+    directory: "/internal"
     schedule:
       interval: "daily"
     labels:
@@ -22,7 +22,7 @@ updates:
     target-branch: "develop"
 
   - package-ecosystem: "bun"
-    directory: "/lynx/dashboard/ui"
+    directory: "/internal/dashboard/ui"
     schedule:
       interval: "daily"
     labels:
