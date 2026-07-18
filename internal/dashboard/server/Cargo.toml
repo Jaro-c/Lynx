@@ -1,10 +1,10 @@
 [package]
-name = "lynx-dashboard-server"
+name = "helmly-dashboard-server"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "lynx-dashboard-server"
+name = "helmly-dashboard-server"
 path = "src/main.rs"
 
 [dependencies]

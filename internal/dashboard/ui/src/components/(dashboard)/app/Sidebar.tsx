@@ -114,7 +114,7 @@ export function Sidebar({ locale, companyName, logoUrl, isAdmin }: Props) {
 					{" · "}
 					<a
 						className="hover:text-muted-foreground transition-colors"
-						href="https://github.com/Glyndor/panel"
+						href="https://github.com/Glyndor/helmly"
 						rel="noopener noreferrer"
 						target="_blank"
 					>

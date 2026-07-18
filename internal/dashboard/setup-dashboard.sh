@@ -598,7 +598,7 @@ done
 
 log_section "Downloading core binaries"
 
-GITHUB_REPO="Glyndor/panel"
+GITHUB_REPO="Glyndor/helmly"
 RELEASE_VERIFY_KEY_B64="APh+kh61dJeT0HzG+KQXELzDjK4ccvqY9K+FptOZ3+Y="
 
 _ARCH=$(uname -m)
@@ -683,10 +683,10 @@ BACKEND_FILE="${BIN_DIR}/lynx-dashboard-backend"
 BACKEND_TMP="${BIN_DIR}/lynx-dashboard-backend.new"
 
 curl -fsSL --max-time 300 \
-    "${RELEASE_BASE}/lynx-dashboard-backend-linux-${ARCH}" \
+    "${RELEASE_BASE}/helmly-dashboard-backend-linux-${ARCH}" \
     -o "$BACKEND_TMP"
 curl -fsSL --max-time 30 \
-    "${RELEASE_BASE}/lynx-dashboard-backend-linux-${ARCH}.sig" \
+    "${RELEASE_BASE}/helmly-dashboard-backend-linux-${ARCH}.sig" \
     -o "${BACKEND_TMP}.sig"
 
 log_info "Verifying backend signature..."
@@ -870,10 +870,10 @@ FRONTEND_BIN_TMP="${FRONTEND_DIR}/lynx-dashboard-frontend.new"
 FRONTEND_ASSETS_TMP="${FRONTEND_DIR}/assets.new.tar.gz"
 
 curl -fsSL --max-time 300 \
-    "${RELEASE_BASE}/lynx-dashboard-frontend-linux-${ARCH}" \
+    "${RELEASE_BASE}/helmly-dashboard-frontend-linux-${ARCH}" \
     -o "$FRONTEND_BIN_TMP"
 curl -fsSL --max-time 30 \
-    "${RELEASE_BASE}/lynx-dashboard-frontend-linux-${ARCH}.sig" \
+    "${RELEASE_BASE}/helmly-dashboard-frontend-linux-${ARCH}.sig" \
     -o "${FRONTEND_BIN_TMP}.sig"
 
 log_info "Verifying frontend binary signature..."
@@ -887,10 +887,10 @@ chmod 755 "$FRONTEND_BIN_TMP"
 
 log_info "Downloading frontend assets..."
 curl -fsSL --max-time 300 \
-    "${RELEASE_BASE}/lynx-dashboard-frontend-assets-linux-${ARCH}.tar.gz" \
+    "${RELEASE_BASE}/helmly-dashboard-frontend-assets-linux-${ARCH}.tar.gz" \
     -o "$FRONTEND_ASSETS_TMP"
 curl -fsSL --max-time 30 \
-    "${RELEASE_BASE}/lynx-dashboard-frontend-assets-linux-${ARCH}.tar.gz.sig" \
+    "${RELEASE_BASE}/helmly-dashboard-frontend-assets-linux-${ARCH}.tar.gz.sig" \
     -o "${FRONTEND_ASSETS_TMP}.sig"
 
 log_info "Verifying frontend assets signature..."
@@ -1614,5 +1614,5 @@ echo -e "  Back up these files — loss means permanent data loss:"
 echo -e "  ${BOLD}/etc/lynx/pg-keyring/lynx.keyring${RESET}  ← pg_tde encryption keyring"
 echo -e "  ${BOLD}/etc/lynx/secrets/lynx-dashboard-kek${RESET}  ← application KEK"
 echo ""
-echo -e "  ${BOLD}Made with love by Jaroc${RESET} — https://github.com/Glyndor/panel"
+echo -e "  ${BOLD}Made with love by Jaroc${RESET} — https://github.com/Glyndor/helmly"
 echo ""

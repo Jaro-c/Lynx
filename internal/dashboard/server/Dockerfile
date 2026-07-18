@@ -16,7 +16,7 @@ RUN apk add --no-cache ca-certificates curl
 
 RUN addgroup -S lynx && adduser -S lynx -G lynx
 
-COPY --from=builder /app/target/release/lynx-dashboard-server /usr/local/bin/server
+COPY --from=builder /app/target/release/helmly-dashboard-server /usr/local/bin/server
 
 USER lynx
 EXPOSE 8080

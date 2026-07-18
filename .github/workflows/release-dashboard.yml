@@ -135,13 +135,13 @@ jobs:
         run: sqlx migrate run --source dashboard/server/migrations
 
       - name: fmt
-        run: cargo fmt --package lynx-dashboard-server -- --check
+        run: cargo fmt --package helmly-dashboard-server -- --check
 
       - name: clippy
-        run: cargo clippy --package lynx-dashboard-server -- -D warnings
+        run: cargo clippy --package helmly-dashboard-server -- -D warnings
 
       - name: test
-        run: cargo test --package lynx-dashboard-server -- --test-threads=1
+        run: cargo test --package helmly-dashboard-server -- --test-threads=1
 
       - name: audit
         run: cargo audit --ignore RUSTSEC-2023-0071
@@ -237,11 +237,11 @@ jobs:
         run: |
           if [ "${{ matrix.use_cross }}" = "true" ]; then
             cross build --release \
-              --package lynx-dashboard-server \
+              --package helmly-dashboard-server \
               --target ${{ matrix.rust-target }}
           else
             cargo build --release \
-              --package lynx-dashboard-server \
+              --package helmly-dashboard-server \
               --target ${{ matrix.rust-target }}
           fi
         env:
@@ -253,8 +253,8 @@ jobs:
           GLYNDOR_RELEASE_ED25519_KEY: ${{ secrets.GLYNDOR_RELEASE_ED25519_KEY }}
         run: |
           pip install --quiet cryptography
-          BINARY="internal/target/${{ matrix.rust-target }}/release/lynx-dashboard-server"
-          ARTIFACT="lynx-dashboard-backend-linux-${{ matrix.arch }}"
+          BINARY="internal/target/${{ matrix.rust-target }}/release/helmly-dashboard-server"
+          ARTIFACT="helmly-dashboard-backend-linux-${{ matrix.arch }}"
           cp "$BINARY" "$ARTIFACT"
           python3 .github/scripts/sign.py "$GLYNDOR_RELEASE_ED25519_KEY" "$ARTIFACT"
 
@@ -311,14 +311,14 @@ jobs:
             --packages=external \
             --compile-autoload-package-json \
             .next/standalone/server.js \
-            --outfile "lynx-dashboard-frontend-linux-${{ matrix.arch }}"
+            --outfile "helmly-dashboard-frontend-linux-${{ matrix.arch }}"
 
       - name: Bundle static assets
         working-directory: internal/dashboard/ui
         run: |
           # Full standalone: node_modules/ + .next/ (server chunks + static + manifests) + public/
           # Binary must be extracted into this same directory at deployment time.
-          TARBALL="lynx-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz"
+          TARBALL="helmly-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz"
           tar -czf "$TARBALL" -C .next/standalone .
           echo "assets tarball: $(du -sh "$TARBALL" | cut -f1)"
 
@@ -327,10 +327,10 @@ jobs:
         env:
           GLYNDOR_RELEASE_ED25519_KEY: ${{ secrets.GLYNDOR_RELEASE_ED25519_KEY }}
         run: |
-          cp "internal/dashboard/ui/lynx-dashboard-frontend-linux-${{ matrix.arch }}" .
-          cp "internal/dashboard/ui/lynx-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz" .
-          BIN="lynx-dashboard-frontend-linux-${{ matrix.arch }}"
-          ASSETS="lynx-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz"
+          cp "internal/dashboard/ui/helmly-dashboard-frontend-linux-${{ matrix.arch }}" .
+          cp "internal/dashboard/ui/helmly-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz" .
+          BIN="helmly-dashboard-frontend-linux-${{ matrix.arch }}"
+          ASSETS="helmly-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz"
           python3 .github/scripts/sign.py "$GLYNDOR_RELEASE_ED25519_KEY" "$BIN"
           python3 .github/scripts/sign.py "$GLYNDOR_RELEASE_ED25519_KEY" "$ASSETS"
 
@@ -341,12 +341,12 @@ jobs:
         with:
           name: dashboard-${{ matrix.arch }}
           path: |
-            lynx-dashboard-backend-linux-${{ matrix.arch }}
-            lynx-dashboard-backend-linux-${{ matrix.arch }}.sig
-            lynx-dashboard-frontend-linux-${{ matrix.arch }}
-            lynx-dashboard-frontend-linux-${{ matrix.arch }}.sig
-            lynx-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz
-            lynx-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz.sig
+            helmly-dashboard-backend-linux-${{ matrix.arch }}
+            helmly-dashboard-backend-linux-${{ matrix.arch }}.sig
+            helmly-dashboard-frontend-linux-${{ matrix.arch }}
+            helmly-dashboard-frontend-linux-${{ matrix.arch }}.sig
+            helmly-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz
+            helmly-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz.sig
           retention-days: 1
 
   release:
@@ -368,15 +368,15 @@ jobs:
         run: |
           gh release create "$TAG" \
             --generate-notes \
-            lynx-dashboard-backend-linux-x86_64 \
-            lynx-dashboard-backend-linux-x86_64.sig \
-            lynx-dashboard-backend-linux-arm64 \
-            lynx-dashboard-backend-linux-arm64.sig \
-            lynx-dashboard-frontend-linux-x86_64 \
-            lynx-dashboard-frontend-linux-x86_64.sig \
-            "lynx-dashboard-frontend-assets-linux-x86_64.tar.gz" \
-            "lynx-dashboard-frontend-assets-linux-x86_64.tar.gz.sig" \
-            lynx-dashboard-frontend-linux-arm64 \
-            lynx-dashboard-frontend-linux-arm64.sig \
-            "lynx-dashboard-frontend-assets-linux-arm64.tar.gz" \
-            "lynx-dashboard-frontend-assets-linux-arm64.tar.gz.sig"
+            helmly-dashboard-backend-linux-x86_64 \
+            helmly-dashboard-backend-linux-x86_64.sig \
+            helmly-dashboard-backend-linux-arm64 \
+            helmly-dashboard-backend-linux-arm64.sig \
+            helmly-dashboard-frontend-linux-x86_64 \
+            helmly-dashboard-frontend-linux-x86_64.sig \
+            "helmly-dashboard-frontend-assets-linux-x86_64.tar.gz" \
+            "helmly-dashboard-frontend-assets-linux-x86_64.tar.gz.sig" \
+            helmly-dashboard-frontend-linux-arm64 \
+            helmly-dashboard-frontend-linux-arm64.sig \
+            "helmly-dashboard-frontend-assets-linux-arm64.tar.gz" \
+            "helmly-dashboard-frontend-assets-linux-arm64.tar.gz.sig"

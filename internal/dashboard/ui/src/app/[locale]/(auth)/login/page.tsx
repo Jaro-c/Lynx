@@ -49,7 +49,7 @@ export default async function LoginPage({ params }: { params: Promise<{ locale: 
 				{" · "}
 				<a
 					className="font-medium text-foreground hover:underline"
-					href="https://github.com/Glyndor/panel"
+					href="https://github.com/Glyndor/helmly"
 					rel="noopener noreferrer"
 					target="_blank"
 				>

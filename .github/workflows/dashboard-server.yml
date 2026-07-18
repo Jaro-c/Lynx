@@ -41,7 +41,7 @@ jobs:
           rustup default stable
 
       - name: fmt
-        run: cargo fmt --package lynx-dashboard-server -- --check
+        run: cargo fmt --package helmly-dashboard-server -- --check
 
   audit-urls:
     name: Audit download URLs
@@ -117,10 +117,10 @@ jobs:
         run: sqlx migrate run --source dashboard/server/migrations
 
       - name: check
-        run: cargo check --package lynx-dashboard-server
+        run: cargo check --package helmly-dashboard-server
 
       - name: clippy
-        run: cargo clippy --package lynx-dashboard-server -- -D warnings
+        run: cargo clippy --package helmly-dashboard-server -- -D warnings
 
   test:
     name: Test
@@ -178,7 +178,7 @@ jobs:
           DATABASE_URL: postgres://lynx_ci:lynx_ci@localhost:5432/lynx_ci
 
       - name: test
-        run: cargo test --package lynx-dashboard-server -- --test-threads=1
+        run: cargo test --package helmly-dashboard-server -- --test-threads=1
         env:
           DATABASE_URL: postgres://lynx_ci:lynx_ci@localhost:5432/lynx_ci
           REDIS_URL: redis://localhost:6379

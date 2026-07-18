@@ -1,6 +1,6 @@
 use axum_test::TestServer;
 use ed25519_dalek::SigningKey;
-use lynx_dashboard_server::{build_router, crypto::pki, AppState};
+use helmly_dashboard_server::{build_router, crypto::pki, AppState};
 use redis::aio::ConnectionManager;
 use rustls;
 use sqlx::PgPool;
@@ -71,7 +71,7 @@ pub async fn test_state() -> AppState {
         pki::issue_x509_dashboard_client_cert(&x509_ca_cert_der, &x509_ca_key_der)
             .expect("issue test client cert");
 
-    let config = Arc::new(lynx_dashboard_server::Config {
+    let config = Arc::new(helmly_dashboard_server::Config {
         database_url: db_url,
         redis_url,
         internal_token: Zeroizing::new("test-internal-token".to_string()),
@@ -107,7 +107,7 @@ pub async fn test_state() -> AppState {
 /// Seed a static test admin user idempotently.
 /// Uses a PostgreSQL advisory lock so parallel test processes don't race.
 async fn seed_test_admin(db: &PgPool) {
-    use lynx_dashboard_server::crypto::{kek, password};
+    use helmly_dashboard_server::crypto::{kek, password};
     use uuid::Uuid;
 
     // Advisory lock key — arbitrary constant, unique to this seeding operation.
@@ -163,7 +163,7 @@ async fn seed_test_admin(db: &PgPool) {
     let email_lower = "testadmin@example.com";
     let email_encrypted =
         kek::encrypt_with_dek(email_lower.as_bytes(), &dek).expect("encrypt email");
-    let email_hash = lynx_dashboard_server::crypto::hash::email_hash(email_lower, test_pepper);
+    let email_hash = helmly_dashboard_server::crypto::hash::email_hash(email_lower, test_pepper);
 
     // Insert user — skip if already exists (another parallel test may have inserted it).
     let _ = sqlx::query!(
@@ -354,7 +354,7 @@ pub async fn test_state_redis_down() -> AppState {
         pki::issue_x509_dashboard_client_cert(&x509_ca_cert_der, &x509_ca_key_der)
             .expect("issue test client cert");
 
-    let config = Arc::new(lynx_dashboard_server::Config {
+    let config = Arc::new(helmly_dashboard_server::Config {
         database_url: db_url,
         redis_url,
         internal_token: Zeroizing::new("test-internal-token".to_string()),

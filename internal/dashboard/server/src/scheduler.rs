@@ -3,8 +3,8 @@ use std::time::Duration;
 use tokio::time::interval;
 use uuid::Uuid;
 
-const DASHBOARD_REPO: &str = "Glyndor/panel";
-const DASHBOARD_API_RELEASES: &str = "https://api.github.com/repos/Glyndor/panel/releases";
+const DASHBOARD_REPO: &str = "Glyndor/helmly";
+const DASHBOARD_API_RELEASES: &str = "https://api.github.com/repos/Glyndor/helmly/releases";
 const AGENT_REPO: &str = "Glyndor/helmly-agent";
 const AGENT_API_RELEASES: &str = "https://api.github.com/repos/Glyndor/helmly-agent/releases";
 
@@ -236,15 +236,15 @@ async fn trigger_dashboard_update(state: &AppState, version: &str) {
         a => a,
     };
     let backend_url = format!(
-        "https://github.com/{DASHBOARD_REPO}/releases/download/dashboard@{version}/lynx-dashboard-backend-linux-{arch}"
+        "https://github.com/{DASHBOARD_REPO}/releases/download/dashboard@{version}/helmly-dashboard-backend-linux-{arch}"
     );
     let backend_sig = format!("{backend_url}.sig");
     let frontend_url = format!(
-        "https://github.com/{DASHBOARD_REPO}/releases/download/dashboard@{version}/lynx-dashboard-frontend-linux-{arch}"
+        "https://github.com/{DASHBOARD_REPO}/releases/download/dashboard@{version}/helmly-dashboard-frontend-linux-{arch}"
     );
     let frontend_sig = format!("{frontend_url}.sig");
     let frontend_assets_url = format!(
-        "https://github.com/{DASHBOARD_REPO}/releases/download/dashboard@{version}/lynx-dashboard-frontend-assets-linux-{arch}.tar.gz"
+        "https://github.com/{DASHBOARD_REPO}/releases/download/dashboard@{version}/helmly-dashboard-frontend-assets-linux-{arch}.tar.gz"
     );
     let frontend_assets_sig = format!("{frontend_assets_url}.sig");
 

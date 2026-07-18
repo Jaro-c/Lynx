@@ -1,7 +1,7 @@
 mod helpers;
 
 use axum_test::TestServer;
-use lynx_dashboard_server::build_router;
+use helmly_dashboard_server::build_router;
 use serde_json::{json, Value};
 
 // ---------------------------------------------------------------------------

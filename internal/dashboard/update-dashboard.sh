@@ -41,7 +41,7 @@ log_section() { echo -e "\n${BOLD}${CYAN}=== $* ===${RESET}"; }
 
 BIN_DIR="/etc/lynx/bin"
 FRONTEND_DIR="/etc/lynx/frontend"
-GITHUB_REPO="Glyndor/panel"
+GITHUB_REPO="Glyndor/helmly"
 VERSION_FILE="$BIN_DIR/lynx-dashboard-version"
 COMPOSE_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/docker-compose.yml"
 FORCE=false
@@ -167,10 +167,10 @@ BACKEND_FILE="$BIN_DIR/lynx-dashboard-backend"
 BACKEND_TMP="$BIN_DIR/lynx-dashboard-backend.new"
 
 curl -fsSL --max-time 300 \
-    "${RELEASE_BASE}/lynx-dashboard-backend-linux-${ARCH}" \
+    "${RELEASE_BASE}/helmly-dashboard-backend-linux-${ARCH}" \
     -o "$BACKEND_TMP"
 curl -fsSL --max-time 30 \
-    "${RELEASE_BASE}/lynx-dashboard-backend-linux-${ARCH}.sig" \
+    "${RELEASE_BASE}/helmly-dashboard-backend-linux-${ARCH}.sig" \
     -o "${BACKEND_TMP}.sig"
 
 log_info "Verifying backend signature..."
@@ -239,10 +239,10 @@ FRONTEND_BIN_TMP="$FRONTEND_DIR/lynx-dashboard-frontend.new"
 FRONTEND_ASSETS_TMP="$FRONTEND_DIR/assets.new.tar.gz"
 
 curl -fsSL --max-time 300 \
-    "${RELEASE_BASE}/lynx-dashboard-frontend-linux-${ARCH}" \
+    "${RELEASE_BASE}/helmly-dashboard-frontend-linux-${ARCH}" \
     -o "$FRONTEND_BIN_TMP"
 curl -fsSL --max-time 30 \
-    "${RELEASE_BASE}/lynx-dashboard-frontend-linux-${ARCH}.sig" \
+    "${RELEASE_BASE}/helmly-dashboard-frontend-linux-${ARCH}.sig" \
     -o "${FRONTEND_BIN_TMP}.sig"
 
 log_info "Verifying frontend binary signature..."
@@ -255,10 +255,10 @@ rm -f "${FRONTEND_BIN_TMP}.sig"
 chmod 755 "$FRONTEND_BIN_TMP"
 
 curl -fsSL --max-time 300 \
-    "${RELEASE_BASE}/lynx-dashboard-frontend-assets-linux-${ARCH}.tar.gz" \
+    "${RELEASE_BASE}/helmly-dashboard-frontend-assets-linux-${ARCH}.tar.gz" \
     -o "$FRONTEND_ASSETS_TMP"
 curl -fsSL --max-time 30 \
-    "${RELEASE_BASE}/lynx-dashboard-frontend-assets-linux-${ARCH}.tar.gz.sig" \
+    "${RELEASE_BASE}/helmly-dashboard-frontend-assets-linux-${ARCH}.tar.gz.sig" \
     -o "${FRONTEND_ASSETS_TMP}.sig"
 
 log_info "Verifying frontend assets signature..."
@@ -379,5 +379,5 @@ echo ""
 echo -e "  If something fails:"
 echo -e "    ${BOLD}lynx-dashboard-backend logs --errors${RESET}"
 echo ""
-echo -e "  ${BOLD}Made with love by Jaroc${RESET} — https://github.com/Glyndor/panel"
+echo -e "  ${BOLD}Made with love by Jaroc${RESET} — https://github.com/Glyndor/helmly"
 echo ""

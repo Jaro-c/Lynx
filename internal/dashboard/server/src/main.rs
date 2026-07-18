@@ -1,4 +1,4 @@
-use lynx_dashboard_server::{
+use helmly_dashboard_server::{
     agents, build_router, config, crypto, scheduler, state::AppState, update,
 };
 
@@ -8,7 +8,7 @@ use std::sync::Arc;
 use tracing::info;
 
 #[derive(Parser)]
-#[command(name = "lynx-dashboard-backend", about = "Lynx Dashboard Backend")]
+#[command(name = "helmly-dashboard-backend", about = "Helmly Dashboard Backend")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,

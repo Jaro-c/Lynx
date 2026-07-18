@@ -7,7 +7,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-const DASHBOARD_REPO: &str = "Glyndor/panel";
+const DASHBOARD_REPO: &str = "Glyndor/helmly";
 const AGENT_REPO: &str = "Glyndor/helmly-agent";
 
 #[derive(Debug, Serialize)]
