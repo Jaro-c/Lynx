@@ -33,7 +33,7 @@ pub async fn run(state: AppState) {
 
 async fn check_releases(state: &AppState) {
     let client = match reqwest::Client::builder()
-        .user_agent("lynx-dashboard/1.0")
+        .user_agent("helmly-dashboard/1.0")
         .timeout(Duration::from_secs(30))
         .build()
     {

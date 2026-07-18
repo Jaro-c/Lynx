@@ -14,11 +14,11 @@ RUN touch src/main.rs && cargo build --release
 FROM alpine:3.21 AS runner
 RUN apk add --no-cache ca-certificates curl
 
-RUN addgroup -S lynx && adduser -S lynx -G lynx
+RUN addgroup -S helmly && adduser -S helmly -G helmly
 
 COPY --from=builder /app/target/release/helmly-dashboard-server /usr/local/bin/server
 
-USER lynx
+USER helmly
 EXPOSE 8080
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 \

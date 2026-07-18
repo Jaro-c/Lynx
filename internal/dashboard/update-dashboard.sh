@@ -319,7 +319,7 @@ rm -f "$FRONTEND_ASSETS_TMP"
 
 log_info "Starting frontend container..."
 if ! podman start helmly-dashboard-frontend 2>/dev/null; then
-    /etc/glyndor/helmly/bin/podup -p lynx-dashboard -f "$COMPOSE_FILE" up -d frontend 2>/dev/null || {
+    /etc/glyndor/helmly/bin/podup -p helmly-dashboard -f "$COMPOSE_FILE" up -d frontend 2>/dev/null || {
         log_error "Failed to start frontend container"
         if [[ -f "${FRONTEND_BIN_FILE}.prev" ]]; then
             log_warn "Restoring previous frontend binary..."

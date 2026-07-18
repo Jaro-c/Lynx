@@ -37,7 +37,7 @@ pub async fn update_check(
     let current = env!("CARGO_PKG_VERSION").to_string();
 
     let client = reqwest::Client::builder()
-        .user_agent(format!("lynx-dashboard/{current}"))
+        .user_agent(format!("helmly-dashboard/{current}"))
         .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|e| AppError::Internal(anyhow::Error::from(e)))?;

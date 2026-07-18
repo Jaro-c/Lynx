@@ -81,7 +81,7 @@ _cleanup_existing() {
         podman stop --time 5 "$ctr" 2>/dev/null || true
     done
     # Catch any stray helmly-dashboard-* containers from partial prior installs
-    podman ps -q --filter name=lynx-dashboard 2>/dev/null | xargs -r podman stop --time 5 2>/dev/null || true
+    podman ps -q --filter name=helmly-dashboard 2>/dev/null | xargs -r podman stop --time 5 2>/dev/null || true
 
     # Remove named containers then any remaining helmly-dashboard-* matches
     for ctr in helmly-dashboard-nginx helmly-dashboard-frontend helmly-dashboard-backend helmly-dashboard-postgres helmly-dashboard-valkey; do
@@ -90,20 +90,20 @@ _cleanup_existing() {
             podman rm -f "$ctr" 2>/dev/null || true
         fi
     done
-    podman ps -aq --filter name=lynx-dashboard 2>/dev/null | xargs -r podman rm -f 2>/dev/null || true
+    podman ps -aq --filter name=helmly-dashboard 2>/dev/null | xargs -r podman rm -f 2>/dev/null || true
 
     # Fail explicitly if any container could not be removed — leftover containers
     # hold volumes open and leave secrets mounted, causing password mismatches on reinstall
-    if podman ps -aq --filter name=lynx-dashboard 2>/dev/null | grep -q .; then
+    if podman ps -aq --filter name=helmly-dashboard 2>/dev/null | grep -q .; then
         log_error "Failed to remove all helmly-dashboard-* containers — manual cleanup required:"
-        podman ps -a --format '{{.Names}}\t{{.Status}}' --filter name=lynx-dashboard 2>/dev/null
+        podman ps -a --format '{{.Names}}\t{{.Status}}' --filter name=helmly-dashboard 2>/dev/null
         exit 1
     fi
 
-    # Remove volumes — project name is forced to lynx-dashboard (-p flag) so
+    # Remove volumes — project name is forced to helmly-dashboard (-p flag) so
     # postgres_data → helmly-dashboard_postgres_data, frontend_next_cache →
     # helmly-dashboard_frontend_next_cache. The extra patterns catch volumes from
-    # runs before the -p flag was added (e.g. lynx-install_postgres_data).
+    # runs before the -p flag was added (e.g. helmly-install_postgres_data).
     podman volume rm helmly-dashboard_postgres_data 2>/dev/null || true
     podman volume rm helmly-dashboard_frontend_next_cache 2>/dev/null || true
     podman volume rm dashboard_postgres_data 2>/dev/null || true
@@ -120,7 +120,7 @@ _cleanup_existing() {
         rm -f "/run/containers/networks/aardvark-dns/$net" 2>/dev/null || true
     done
 
-    # Remove known secrets then sweep any remaining lynx-* secrets
+    # Remove known secrets then sweep any remaining helmly-* secrets
     for secret in helmly-dashboard-pg-root helmly-dashboard-pg-pass helmly-dashboard-redis-pass \
                   helmly-dashboard-database-url helmly-dashboard-redis-url \
                   helmly-dashboard-api-token helmly-dashboard-kek helmly-dashboard-pepper \
@@ -132,7 +132,7 @@ _cleanup_existing() {
                   helmly-dashboard-local-agent-psk; do
         podman secret rm "$secret" 2>/dev/null || true
     done
-    podman secret ls --format '{{.Name}}' 2>/dev/null | grep '^lynx-' | xargs -r podman secret rm 2>/dev/null || true
+    podman secret ls --format '{{.Name}}' 2>/dev/null | grep '^helmly-' | xargs -r podman secret rm 2>/dev/null || true
     rm -rf /etc/glyndor/helmly/secrets
 
     # Remove WireGuard interface
@@ -307,17 +307,17 @@ log_section "Checking for existing installation"
 existing=false
 existing_reason=""
 
-if podman network ls --format '{{.Name}}' 2>/dev/null | grep -q '^lynx-dashboard'; then
+if podman network ls --format '{{.Name}}' 2>/dev/null | grep -q '^helmly-dashboard'; then
     existing=true
     existing_reason+=" Podman networks helmly-dashboard-* found."
 fi
-if podman ps -a --format '{{.Names}}' 2>/dev/null | grep -q '^lynx-dashboard'; then
+if podman ps -a --format '{{.Names}}' 2>/dev/null | grep -q '^helmly-dashboard'; then
     existing=true
     existing_reason+=" Containers helmly-dashboard-* found."
 fi
-if podman secret ls --format '{{.Name}}' 2>/dev/null | grep -q '^lynx-'; then
+if podman secret ls --format '{{.Name}}' 2>/dev/null | grep -q '^helmly-'; then
     existing=true
-    existing_reason+=" Secrets lynx-* found."
+    existing_reason+=" Secrets helmly-* found."
 fi
 if [[ -d "$LYNX_DIR" ]]; then
     existing=true
@@ -342,8 +342,8 @@ if $existing; then
         3)
             echo ""
             log_warn "This will permanently destroy all Lynx data on this machine."
-            read -rp "Type 'reinstall lynx-dashboard' to confirm: " confirm
-            if [[ "$confirm" != "reinstall lynx-dashboard" ]]; then
+            read -rp "Type 'reinstall helmly-dashboard' to confirm: " confirm
+            if [[ "$confirm" != "reinstall helmly-dashboard" ]]; then
                 log_error "Confirmation phrase mismatch. Aborting."
                 exit 1
             fi
@@ -1104,7 +1104,7 @@ rm -rf /var/lib/containers/storage/volumes/postgres_data 2>/dev/null || true
 
 # 1. PostgreSQL
 log_info "Starting PostgreSQL..."
-"$BIN_DIR/podup" -p lynx-dashboard -f "$COMPOSE_FILE" up -d postgres
+"$BIN_DIR/podup" -p helmly-dashboard -f "$COMPOSE_FILE" up -d postgres
 
 log_info "Waiting for PostgreSQL to be healthy..."
 for i in $(seq 1 30); do
@@ -1155,7 +1155,7 @@ log_ok "PostgreSQL app user and encryption initialized"
 
 # 2. Valkey
 log_info "Starting Valkey..."
-"$BIN_DIR/podup" -p lynx-dashboard -f "$COMPOSE_FILE" up --no-recreate -d valkey
+"$BIN_DIR/podup" -p helmly-dashboard -f "$COMPOSE_FILE" up --no-recreate -d valkey
 
 log_info "Waiting for Valkey to be healthy..."
 for i in $(seq 1 30); do
@@ -1233,7 +1233,7 @@ _nft_ensure_container_dns
 
 # 3. Backend
 log_info "Starting backend..."
-"$BIN_DIR/podup" -p lynx-dashboard -f "$COMPOSE_FILE" up --no-recreate -d backend
+"$BIN_DIR/podup" -p helmly-dashboard -f "$COMPOSE_FILE" up --no-recreate -d backend
 
 log_info "Waiting for backend to be healthy..."
 for i in $(seq 1 40); do
@@ -1252,7 +1252,7 @@ done
 
 # 4. Frontend
 log_info "Starting frontend..."
-"$BIN_DIR/podup" -p lynx-dashboard -f "$COMPOSE_FILE" up --no-recreate -d frontend
+"$BIN_DIR/podup" -p helmly-dashboard -f "$COMPOSE_FILE" up --no-recreate -d frontend
 
 log_info "Waiting for frontend to be healthy..."
 for i in $(seq 1 40); do
