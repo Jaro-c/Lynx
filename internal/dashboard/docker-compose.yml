@@ -120,7 +120,7 @@ services:
       - helmly-dashboard-pg-pass
     volumes:
       - postgres_data:/var/lib/postgresql
-      - ${LYNX_DB_INIT_DIR:-./server/db/init}:/docker-entrypoint-initdb.d:ro
+      - ${HELMLY_DB_INIT_DIR:-./server/db/init}:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d helmly_dashboard"]
       interval: 5s

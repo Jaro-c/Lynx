@@ -2,9 +2,9 @@
 # =============================================================================
 # install-nftables.sh
 # =============================================================================
-# Description: Installs nftables as the firewall for Lynx.
+# Description: Installs nftables as the firewall for Helmly.
 #              Applies a secure base ruleset that allows SSH and blocks
-#              everything else by default. Lynx will manage rules from here.
+#              everything else by default. Helmly will manage rules from here.
 #
 # Dependencies:
 #   - detect-os.sh must be sourced first (provides PKG_MANAGER, PKG_INSTALL, etc.)

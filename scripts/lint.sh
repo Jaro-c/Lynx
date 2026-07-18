@@ -2,7 +2,7 @@
 # =============================================================================
 # lint.sh
 # =============================================================================
-# Description: Runs shellcheck static analysis on all Lynx shell scripts.
+# Description: Runs shellcheck static analysis on all Helmly shell scripts.
 #              Reports errors, warnings and style issues without executing them.
 #
 # Usage:
@@ -49,7 +49,7 @@ SCRIPTS=(
 # -----------------------------------------------------------------------------
 # Run shellcheck
 # -----------------------------------------------------------------------------
-echo -e "${BOLD}${CYAN}Lynx Shell Linter${RESET}\n"
+echo -e "${BOLD}${CYAN}Helmly Shell Linter${RESET}\n"
 
 ERRORS=0
 

@@ -87,7 +87,7 @@ mod tests {
     #[test]
     fn data_encrypt_decrypt_roundtrip() {
         let dek: [u8; 32] = [0x33u8; 32];
-        let plaintext = b"hello lynx world";
+        let plaintext = b"hello helmly world";
         let ct = encrypt_with_dek(plaintext, &dek).expect("encrypt");
         let recovered = decrypt_with_dek(&ct, &dek).expect("decrypt");
         assert_eq!(recovered, plaintext);

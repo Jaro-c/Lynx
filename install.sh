@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Lynx Installer
+# Helmly Installer
 # =============================================================================
-# Description: Master orchestrator for installing Lynx components.
+# Description: Master orchestrator for installing Helmly components.
 #              Supports Dashboard and Agent installation.
 #
 # Usage:
@@ -49,10 +49,10 @@ echo
 # -----------------------------------------------------------------------------
 # Menu
 # -----------------------------------------------------------------------------
-echo -e "${BOLD}${CYAN}Lynx Installer${RESET}"
+echo -e "${BOLD}${CYAN}Helmly Installer${RESET}"
 echo -e "Select what to install:\n"
-echo -e "  ${BOLD}1)${RESET} Dashboard — installs the Lynx dashboard on this VPS"
-echo -e "  ${BOLD}2)${RESET} Agent     — installs the Lynx agent on this VPS"
+echo -e "  ${BOLD}1)${RESET} Dashboard — installs the Helmly dashboard on this VPS"
+echo -e "  ${BOLD}2)${RESET} Agent     — installs the Helmly agent on this VPS"
 echo
 
 read -rp "Option [1/2] (default: 1): " OPTION

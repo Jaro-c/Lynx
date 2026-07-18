@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
-# update-dashboard.sh — Lynx Dashboard update script
+# update-dashboard.sh — Helmly Dashboard update script
 #
 # Description:
-#   Updates the Lynx Dashboard to the latest available release.
+#   Updates the Helmly Dashboard to the latest available release.
 #   Downloads binaries from GitHub Releases, verifies Ed25519 signatures,
 #   swaps atomically with .prev backup, and restarts containers.
 #   Preserves all data, secrets, WireGuard config, and TLS certificates.
@@ -13,7 +13,7 @@
 #   sudo ./update-dashboard.sh --force   (update even if already at latest)
 #
 # Requirements:
-#   - Lynx Dashboard already installed (run setup-dashboard.sh first)
+#   - Helmly Dashboard already installed (run setup-dashboard.sh first)
 #   - Run as root
 #   - Internet access to GitHub Releases
 # -----------------------------------------------------------------------------
@@ -65,7 +65,7 @@ fi
 # --- Installation check -----------------------------------------------------
 
 if [[ ! -f "$BIN_DIR/helmly-dashboard-backend" ]]; then
-    log_error "Lynx Dashboard not installed — run setup-dashboard.sh first"
+    log_error "Helmly Dashboard not installed — run setup-dashboard.sh first"
     exit 1
 fi
 
@@ -362,7 +362,7 @@ printf '%s' "$LATEST_VERSION" > "$VERSION_FILE"
 log_section "Update complete"
 
 echo ""
-echo -e "${GREEN}${BOLD}Lynx Dashboard updated to v${LATEST_VERSION}${RESET}"
+echo -e "${GREEN}${BOLD}Helmly Dashboard updated to v${LATEST_VERSION}${RESET}"
 if [[ -n "$CURRENT_VERSION" ]]; then
     echo -e "  ${BOLD}Previous version:${RESET} $CURRENT_VERSION"
 fi

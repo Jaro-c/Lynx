@@ -111,7 +111,7 @@ async fn seed_test_admin(db: &PgPool) {
     use uuid::Uuid;
 
     // Advisory lock key — arbitrary constant, unique to this seeding operation.
-    const LOCK_KEY: i64 = 0x4c796e78_5f746573i64; // "Lynx_tes"
+    const LOCK_KEY: i64 = 0x48656c6d_6c795f74i64; // "Helmly_t"
 
     // Acquire session-level advisory lock — blocks until no other test holds it.
     sqlx::query("SELECT pg_advisory_lock($1)")

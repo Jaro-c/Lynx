@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
-# setup-dashboard.sh — Lynx Dashboard install / reinstall script
+# setup-dashboard.sh — Helmly Dashboard install / reinstall script
 #
 # Description:
-#   Installs the Lynx Dashboard on a VPS. Sets up:
+#   Installs the Helmly Dashboard on a VPS. Sets up:
 #     - Podman networks (3 isolated: db, cache, app)
 #     - Podman secrets (randomly generated, no trace)
 #     - PostgreSQL 18 container with isolated app user
@@ -14,7 +14,7 @@
 #     - WireGuard tunnel to local agent
 #
 # Usage:
-#   curl -sSL https://get.lynx.example/dashboard | bash
+#   curl -sSL https://get.helmly.example/dashboard | bash
 #   OR
 #   ./setup-dashboard.sh
 #
@@ -45,7 +45,7 @@ log_section() { echo -e "\n${BOLD}${CYAN}=== $* ===${RESET}"; }
 
 # --- Constants --------------------------------------------------------------
 
-LYNX_DIR="/etc/glyndor/helmly"
+HELMLY_DIR="/etc/glyndor/helmly"
 CERTS_DIR="/etc/glyndor/helmly/tls"
 WG_DIR="/etc/wireguard"
 COMPOSE_FILE="/etc/glyndor/helmly/docker-compose.yml"
@@ -153,7 +153,7 @@ _cleanup_existing() {
     rm -f /etc/nftables-helmly-dashboard.conf
     nft delete table inet helmly-agent 2>/dev/null || true
 
-    rm -rf "$LYNX_DIR"
+    rm -rf "$HELMLY_DIR"
     log_ok "Cleanup complete"
 }
 
@@ -180,7 +180,7 @@ log_section "Checking system resources"
 TOTAL_RAM_MB=$(free -m | awk '/^Mem:/{print $2}')
 if [[ "$TOTAL_RAM_MB" -lt 512 ]]; then
     log_error "Insufficient RAM: ${TOTAL_RAM_MB} MB detected, minimum 512 MB required"
-    log_info  "Lynx Dashboard requires at least 512 MB RAM for PostgreSQL to operate correctly"
+    log_info  "Helmly Dashboard requires at least 512 MB RAM for PostgreSQL to operate correctly"
     exit 1
 fi
 log_ok "RAM: ${TOTAL_RAM_MB} MB (minimum 512 MB satisfied)"
@@ -200,11 +200,11 @@ log_ok "Disk:  ${FREE_DISK_MB} MB free on / (minimum 2048 MB satisfied)"
 
 log_section "Checking for incompatible software"
 
-log_info "Lynx manages containers via Podman and firewall via nftables."
+log_info "Helmly manages containers via Podman and firewall via nftables."
 log_info "The following software is incompatible and will be removed if found:"
 log_info "  Docker / Docker Engine, containerd (standalone), firewalld, ufw, iptables (legacy)"
 log_info "Reason: these programs add their own firewall/network rules outside"
-log_info "        table inet helmly-agent, silently exposing ports Lynx considers closed."
+log_info "        table inet helmly-agent, silently exposing ports Helmly considers closed."
 
 _detect_distro() {
     if command -v apt-get &>/dev/null;   then echo "debian"
@@ -319,9 +319,9 @@ if podman secret ls --format '{{.Name}}' 2>/dev/null | grep -q '^helmly-'; then
     existing=true
     existing_reason+=" Secrets helmly-* found."
 fi
-if [[ -d "$LYNX_DIR" ]]; then
+if [[ -d "$HELMLY_DIR" ]]; then
     existing=true
-    existing_reason+=" Directory $LYNX_DIR exists."
+    existing_reason+=" Directory $HELMLY_DIR exists."
 fi
 
 if $existing; then
@@ -341,7 +341,7 @@ if $existing; then
             ;;
         3)
             echo ""
-            log_warn "This will permanently destroy all Lynx data on this machine."
+            log_warn "This will permanently destroy all Helmly data on this machine."
             read -rp "Type 'reinstall helmly-dashboard' to confirm: " confirm
             if [[ "$confirm" != "reinstall helmly-dashboard" ]]; then
                 log_error "Confirmation phrase mismatch. Aborting."
@@ -465,7 +465,7 @@ for _pkg in netavark aardvark-dns; do
 done
 
 # Netavark 1.10+ supports a native nftables firewall driver — older versions
-# fall back to iptables-nft. Lynx requires the nftables driver so the iptables
+# fall back to iptables-nft. Helmly requires the nftables driver so the iptables
 # package can be dropped entirely (it remains in the incompatible-software list).
 # Upgrade netavark from upstream when the distro ships a version < 1.10.
 NETAVARK_REQUIRED="1.10.0"
@@ -564,9 +564,9 @@ unset _ntp_active
 
 log_section "Creating directories"
 
-NGINX_DIR="$LYNX_DIR/nginx"
-mkdir -p "$LYNX_DIR" "$CERTS_DIR" "$WG_DIR" "$NGINX_DIR"
-chmod 700 "$LYNX_DIR" "$CERTS_DIR" "$WG_DIR"
+NGINX_DIR="$HELMLY_DIR/nginx"
+mkdir -p "$HELMLY_DIR" "$CERTS_DIR" "$WG_DIR" "$NGINX_DIR"
+chmod 700 "$HELMLY_DIR" "$CERTS_DIR" "$WG_DIR"
 chmod 755 "$NGINX_DIR"
 log_ok "Directories created"
 
@@ -590,7 +590,7 @@ done
 
 # --- Download core binaries -------------------------------------------------
 #
-# The backend binary is needed BEFORE secret generation: every Lynx crypto
+# The backend binary is needed BEFORE secret generation: every Helmly crypto
 # primitive (random tokens, Ed25519/X25519 keypairs, X.509 CA) is produced by
 # `helmly-dashboard-backend` subcommands so the host does not need `openssl`.
 # Binaries are signed with Ed25519; the public key is hardcoded below and the
@@ -632,9 +632,9 @@ if [[ -z "$LATEST_TAG" ]]; then
 fi
 log_ok "Latest release: ${LATEST_TAG}"
 
-# LYNX_RELEASE_BASE lets local-host testing point binary downloads at a private
+# HELMLY_RELEASE_BASE lets local-host testing point binary downloads at a private
 # HTTP server (e.g. `python3 -m http.server`) before a real release exists.
-RELEASE_BASE="${LYNX_RELEASE_BASE:-https://github.com/${GITHUB_REPO}/releases/download/${LATEST_TAG}}"
+RELEASE_BASE="${HELMLY_RELEASE_BASE:-https://github.com/${GITHUB_REPO}/releases/download/${LATEST_TAG}}"
 BIN_DIR="/etc/glyndor/helmly/bin"
 FRONTEND_DIR="/etc/glyndor/helmly/frontend"
 
@@ -703,8 +703,8 @@ log_ok "Backend installed: ${BACKEND_FILE}"
 # podup ships from its own repository since the extraction — resolve its
 # latest release independently of the dashboard release.
 COMPOSE_REPO="Glyndor/podup"
-if [[ -n "${LYNX_RELEASE_BASE:-}" ]]; then
-    COMPOSE_RELEASE_BASE="${LYNX_RELEASE_BASE}"
+if [[ -n "${HELMLY_RELEASE_BASE:-}" ]]; then
+    COMPOSE_RELEASE_BASE="${HELMLY_RELEASE_BASE}"
 else
     log_info "Fetching latest podup release..."
     COMPOSE_TAG=$(curl -fsSL \
@@ -1200,7 +1200,7 @@ DASHBOARD_PRIV="$("$BACKEND_FILE" gen-rand 32)"
 
 log_ok "WireGuard config written: ${WG_CONF}"
 log_ok "Dashboard WireGuard pubkey: ${DASHBOARD_PUB}"
-printf '%s' "$DASHBOARD_PUB" > "$LYNX_DIR/dashboard-wg-pubkey"
+printf '%s' "$DASHBOARD_PUB" > "$HELMLY_DIR/dashboard-wg-pubkey"
 
 wg-quick up wg-helmly-dash
 systemctl enable "wg-quick@wg-helmly-dash"
@@ -1293,7 +1293,7 @@ _generate_cert
 # Systemd timer for certificate rotation (90-day renewal)
 cat > /etc/systemd/system/helmly-dashboard-rotate-certs.service << 'EOF'
 [Unit]
-Description=Lynx Dashboard — rotate TLS certificate
+Description=Helmly Dashboard — rotate TLS certificate
 After=network.target
 
 [Service]
@@ -1309,7 +1309,7 @@ EOF
 
 cat > /etc/systemd/system/helmly-dashboard-rotate-certs.timer << 'EOF'
 [Unit]
-Description=Lynx Dashboard — TLS certificate rotation (every 80 days)
+Description=Helmly Dashboard — TLS certificate rotation (every 80 days)
 
 [Timer]
 OnCalendar=*-*-* 03:00:00
@@ -1376,11 +1376,11 @@ NGINXEOF
 cat > "$NGINX_DIR/updating.html" << 'EOF'
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>Lynx — Updating</title>
+<head><meta charset="UTF-8"><title>Helmly — Updating</title>
 <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0f172a;color:#e2e8f0}
 .box{text-align:center;padding:2rem}h1{font-size:1.5rem;margin-bottom:.5rem}p{color:#94a3b8}</style>
 </head>
-<body><div class="box"><h1>Lynx is updating</h1><p>The dashboard will be back shortly.</p></div></body>
+<body><div class="box"><h1>Helmly is updating</h1><p>The dashboard will be back shortly.</p></div></body>
 </html>
 EOF
 
@@ -1526,7 +1526,7 @@ NFT_DASH
 nft -f /etc/nftables-helmly-dashboard.conf
 log_ok "Dashboard nftables (container DNS) applied"
 
-# Persist across reboots — migrate away from old lynx-dashboard include
+# Persist across reboots — re-add the dashboard nftables include cleanly
 if [[ -f /etc/nftables.conf ]]; then
     sed -i '/nftables-helmly-dashboard/d' /etc/nftables.conf
     if ! grep -q "nftables-helmly-agent" /etc/nftables.conf; then
@@ -1547,7 +1547,7 @@ log_section "Enabling container auto-start on reboot"
 # This oneshot service starts all five containers at boot, after nftables are loaded.
 cat > /etc/systemd/system/helmly-dashboard-containers.service << 'EOF'
 [Unit]
-Description=Lynx Dashboard — start containers on boot
+Description=Helmly Dashboard — start containers on boot
 After=network-online.target nftables.service helmly-agent.service
 Wants=network-online.target helmly-agent.service
 
@@ -1583,7 +1583,7 @@ HOST_IP=$(hostname -I | awk '{print $1}')
 CERT_EXPIRY=$("$BACKEND_FILE" cert-expiry "$CERT")
 
 echo ""
-echo -e "${GREEN}${BOLD}Lynx Dashboard is running!${RESET}"
+echo -e "${GREEN}${BOLD}Helmly Dashboard is running!${RESET}"
 echo ""
 echo -e "  ${BOLD}URL:${RESET}               ${CYAN}https://${HOST_IP}:${LISTEN_PORT}${RESET}"
 echo -e "  ${BOLD}Cert expires:${RESET}      ${CERT_EXPIRY}"

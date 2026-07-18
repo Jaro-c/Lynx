@@ -71,7 +71,7 @@ enum Command {
         cert: std::path::PathBuf,
     },
     /// Generate an Ed25519 X.509 CA certificate and key, both DER-encoded and
-    /// base64-encoded (replaces the openssl pipeline that built the Lynx
+    /// base64-encoded (replaces the openssl pipeline that built the Helmly
     /// internal CA). Prints two lines: cert_der_b64, then key_der_b64.
     GenX509Ca,
 }
