@@ -39,10 +39,10 @@ log_section() { echo -e "\n${BOLD}${CYAN}=== $* ===${RESET}"; }
 
 # --- Constants --------------------------------------------------------------
 
-BIN_DIR="/etc/lynx/bin"
-FRONTEND_DIR="/etc/lynx/frontend"
+BIN_DIR="/etc/glyndor/helmly/bin"
+FRONTEND_DIR="/etc/glyndor/helmly/frontend"
 GITHUB_REPO="Glyndor/helmly"
-VERSION_FILE="$BIN_DIR/lynx-dashboard-version"
+VERSION_FILE="$BIN_DIR/helmly-dashboard-version"
 COMPOSE_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/docker-compose.yml"
 FORCE=false
 
@@ -64,7 +64,7 @@ fi
 
 # --- Installation check -----------------------------------------------------
 
-if [[ ! -f "$BIN_DIR/lynx-dashboard-backend" ]]; then
+if [[ ! -f "$BIN_DIR/helmly-dashboard-backend" ]]; then
     log_error "Lynx Dashboard not installed — run setup-dashboard.sh first"
     exit 1
 fi
@@ -163,8 +163,8 @@ RELEASE_BASE="https://github.com/${GITHUB_REPO}/releases/download/${LATEST_TAG}"
 
 log_section "Downloading backend binary"
 
-BACKEND_FILE="$BIN_DIR/lynx-dashboard-backend"
-BACKEND_TMP="$BIN_DIR/lynx-dashboard-backend.new"
+BACKEND_FILE="$BIN_DIR/helmly-dashboard-backend"
+BACKEND_TMP="$BIN_DIR/helmly-dashboard-backend.new"
 
 curl -fsSL --max-time 300 \
     "${RELEASE_BASE}/helmly-dashboard-backend-linux-${ARCH}" \
@@ -234,8 +234,8 @@ log_ok "podup verified"
 
 log_section "Downloading frontend binary and assets"
 
-FRONTEND_BIN_FILE="$FRONTEND_DIR/lynx-dashboard-frontend"
-FRONTEND_BIN_TMP="$FRONTEND_DIR/lynx-dashboard-frontend.new"
+FRONTEND_BIN_FILE="$FRONTEND_DIR/helmly-dashboard-frontend"
+FRONTEND_BIN_TMP="$FRONTEND_DIR/helmly-dashboard-frontend.new"
 FRONTEND_ASSETS_TMP="$FRONTEND_DIR/assets.new.tar.gz"
 
 curl -fsSL --max-time 300 \
@@ -285,7 +285,7 @@ mv "$COMPOSE_TMP" "$COMPOSE_FILE_BIN"
 log_ok "Backend binary swapped — waiting for Podman to restart container..."
 
 for i in $(seq 1 40); do
-    if podman inspect lynx-dashboard-backend --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy; then
+    if podman inspect helmly-dashboard-backend --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy; then
         log_ok "Backend healthy"
         break
     fi
@@ -294,10 +294,10 @@ for i in $(seq 1 40); do
         if [[ -f "${BACKEND_FILE}.prev" ]]; then
             log_warn "Restoring previous backend binary..."
             mv "${BACKEND_FILE}.prev" "$BACKEND_FILE"
-            podman restart lynx-dashboard-backend 2>/dev/null || true
+            podman restart helmly-dashboard-backend 2>/dev/null || true
             log_error "Previous version restored — investigate before retrying"
         fi
-        podman logs lynx-dashboard-backend --tail 50 2>/dev/null || true
+        podman logs helmly-dashboard-backend --tail 50 2>/dev/null || true
         rm -f "$FRONTEND_BIN_TMP" "$FRONTEND_ASSETS_TMP"
         exit 1
     fi
@@ -309,7 +309,7 @@ done
 log_section "Deploying frontend"
 
 log_info "Stopping frontend container (nginx serves updating.html during swap)..."
-podman stop lynx-dashboard-frontend 2>/dev/null || true
+podman stop helmly-dashboard-frontend 2>/dev/null || true
 
 cp -f "$FRONTEND_BIN_FILE" "${FRONTEND_BIN_FILE}.prev" 2>/dev/null || true
 mv "$FRONTEND_BIN_TMP" "$FRONTEND_BIN_FILE"
@@ -318,13 +318,13 @@ tar -xzf "$FRONTEND_ASSETS_TMP" -C "$FRONTEND_DIR"
 rm -f "$FRONTEND_ASSETS_TMP"
 
 log_info "Starting frontend container..."
-if ! podman start lynx-dashboard-frontend 2>/dev/null; then
-    /etc/lynx/bin/podup -p lynx-dashboard -f "$COMPOSE_FILE" up -d frontend 2>/dev/null || {
+if ! podman start helmly-dashboard-frontend 2>/dev/null; then
+    /etc/glyndor/helmly/bin/podup -p lynx-dashboard -f "$COMPOSE_FILE" up -d frontend 2>/dev/null || {
         log_error "Failed to start frontend container"
         if [[ -f "${FRONTEND_BIN_FILE}.prev" ]]; then
             log_warn "Restoring previous frontend binary..."
             mv "${FRONTEND_BIN_FILE}.prev" "$FRONTEND_BIN_FILE"
-            podman start lynx-dashboard-frontend 2>/dev/null || true
+            podman start helmly-dashboard-frontend 2>/dev/null || true
             log_error "Previous frontend version restored — investigate before retrying"
         fi
         exit 1
@@ -333,7 +333,7 @@ fi
 
 log_info "Waiting for frontend to become healthy..."
 for i in $(seq 1 30); do
-    if podman inspect lynx-dashboard-frontend --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy; then
+    if podman inspect helmly-dashboard-frontend --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy; then
         log_ok "Frontend healthy"
         break
     fi
@@ -341,12 +341,12 @@ for i in $(seq 1 30); do
         log_error "Frontend did not become healthy after update"
         if [[ -f "${FRONTEND_BIN_FILE}.prev" ]]; then
             log_warn "Restoring previous frontend binary..."
-            podman stop lynx-dashboard-frontend 2>/dev/null || true
+            podman stop helmly-dashboard-frontend 2>/dev/null || true
             mv "${FRONTEND_BIN_FILE}.prev" "$FRONTEND_BIN_FILE"
-            podman start lynx-dashboard-frontend 2>/dev/null || true
+            podman start helmly-dashboard-frontend 2>/dev/null || true
             log_error "Previous frontend version restored — investigate before retrying"
         fi
-        podman logs lynx-dashboard-frontend --tail 30 2>/dev/null || true
+        podman logs helmly-dashboard-frontend --tail 30 2>/dev/null || true
         exit 1
     fi
     sleep 3
@@ -377,7 +377,7 @@ if [[ -f "${BACKEND_FILE}.prev" || -f "${FRONTEND_BIN_FILE}.prev" ]]; then
 fi
 echo ""
 echo -e "  If something fails:"
-echo -e "    ${BOLD}lynx-dashboard-backend logs --errors${RESET}"
+echo -e "    ${BOLD}helmly-dashboard-backend logs --errors${RESET}"
 echo ""
 echo -e "  ${BOLD}Made with love by Jaroc${RESET} — https://github.com/Glyndor/helmly"
 echo ""

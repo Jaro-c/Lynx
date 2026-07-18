@@ -45,10 +45,10 @@ log_section() { echo -e "\n${BOLD}${CYAN}=== $* ===${RESET}"; }
 
 # --- Constants --------------------------------------------------------------
 
-LYNX_DIR="/etc/lynx"
-CERTS_DIR="/etc/lynx/tls"
+LYNX_DIR="/etc/glyndor/helmly"
+CERTS_DIR="/etc/glyndor/helmly/tls"
 WG_DIR="/etc/wireguard"
-COMPOSE_FILE="/etc/lynx/docker-compose.yml"
+COMPOSE_FILE="/etc/glyndor/helmly/docker-compose.yml"
 LISTEN_PORT=19443
 AGENT_WG_PORT=51820
 AGENT_WG_IP="10.100.0.2"
@@ -56,9 +56,9 @@ DASHBOARD_WG_IP="10.100.0.1"
 
 # Podman network subnets — fixed to prevent stale DNAT when containers restart.
 # Container static IPs are hardcoded in the compose YAML below (.1 = gateway, .2+ = containers):
-#   lynx-dashboard-db    10.89.0.0/24  postgres=10.89.0.2  backend=10.89.0.3
-#   lynx-dashboard-cache 10.89.1.0/24  valkey=10.89.1.2    backend=10.89.1.3
-#   lynx-dashboard-app   10.89.2.0/24  backend=10.89.2.2   frontend=10.89.2.3  nginx=10.89.2.4
+#   helmly-dashboard-db    10.89.0.0/24  postgres=10.89.0.2  backend=10.89.0.3
+#   helmly-dashboard-cache 10.89.1.0/24  valkey=10.89.1.2    backend=10.89.1.3
+#   helmly-dashboard-app   10.89.2.0/24  backend=10.89.2.2   frontend=10.89.2.3  nginx=10.89.2.4
 DASHBOARD_DB_SUBNET="10.89.0.0/24"
 DASHBOARD_CACHE_SUBNET="10.89.1.0/24"
 DASHBOARD_APP_SUBNET="10.89.2.0/24"
@@ -77,14 +77,14 @@ _cleanup_existing() {
 
     # Gracefully stop containers before removal so volumes are not locked
     log_info "Stopping containers..."
-    for ctr in lynx-dashboard-nginx lynx-dashboard-frontend lynx-dashboard-backend lynx-dashboard-postgres lynx-dashboard-valkey; do
+    for ctr in helmly-dashboard-nginx helmly-dashboard-frontend helmly-dashboard-backend helmly-dashboard-postgres helmly-dashboard-valkey; do
         podman stop --time 5 "$ctr" 2>/dev/null || true
     done
-    # Catch any stray lynx-dashboard-* containers from partial prior installs
+    # Catch any stray helmly-dashboard-* containers from partial prior installs
     podman ps -q --filter name=lynx-dashboard 2>/dev/null | xargs -r podman stop --time 5 2>/dev/null || true
 
-    # Remove named containers then any remaining lynx-dashboard-* matches
-    for ctr in lynx-dashboard-nginx lynx-dashboard-frontend lynx-dashboard-backend lynx-dashboard-postgres lynx-dashboard-valkey; do
+    # Remove named containers then any remaining helmly-dashboard-* matches
+    for ctr in helmly-dashboard-nginx helmly-dashboard-frontend helmly-dashboard-backend helmly-dashboard-postgres helmly-dashboard-valkey; do
         if podman container exists "$ctr" 2>/dev/null; then
             log_info "Removing container: $ctr"
             podman rm -f "$ctr" 2>/dev/null || true
@@ -95,17 +95,17 @@ _cleanup_existing() {
     # Fail explicitly if any container could not be removed — leftover containers
     # hold volumes open and leave secrets mounted, causing password mismatches on reinstall
     if podman ps -aq --filter name=lynx-dashboard 2>/dev/null | grep -q .; then
-        log_error "Failed to remove all lynx-dashboard-* containers — manual cleanup required:"
+        log_error "Failed to remove all helmly-dashboard-* containers — manual cleanup required:"
         podman ps -a --format '{{.Names}}\t{{.Status}}' --filter name=lynx-dashboard 2>/dev/null
         exit 1
     fi
 
     # Remove volumes — project name is forced to lynx-dashboard (-p flag) so
-    # postgres_data → lynx-dashboard_postgres_data, frontend_next_cache →
-    # lynx-dashboard_frontend_next_cache. The extra patterns catch volumes from
+    # postgres_data → helmly-dashboard_postgres_data, frontend_next_cache →
+    # helmly-dashboard_frontend_next_cache. The extra patterns catch volumes from
     # runs before the -p flag was added (e.g. lynx-install_postgres_data).
-    podman volume rm lynx-dashboard_postgres_data 2>/dev/null || true
-    podman volume rm lynx-dashboard_frontend_next_cache 2>/dev/null || true
+    podman volume rm helmly-dashboard_postgres_data 2>/dev/null || true
+    podman volume rm helmly-dashboard_frontend_next_cache 2>/dev/null || true
     podman volume rm dashboard_postgres_data 2>/dev/null || true
     # Broad pattern sweep for installs run from any directory name
     podman volume ls --format '{{.Name}}' 2>/dev/null \
@@ -115,25 +115,25 @@ _cleanup_existing() {
     # Remove networks. Also purge stale aardvark-dns config files so the
     # next network create starts with clean DNS state (stale files cause the
     # DNS gateway to reference the old subnet, breaking hostname resolution).
-    for net in lynx-dashboard-db lynx-dashboard-cache lynx-dashboard-app; do
+    for net in helmly-dashboard-db helmly-dashboard-cache helmly-dashboard-app; do
         podman network rm "$net" 2>/dev/null || true
         rm -f "/run/containers/networks/aardvark-dns/$net" 2>/dev/null || true
     done
 
     # Remove known secrets then sweep any remaining lynx-* secrets
-    for secret in lynx-dashboard-pg-root lynx-dashboard-pg-pass lynx-dashboard-redis-pass \
-                  lynx-dashboard-database-url lynx-dashboard-redis-url \
-                  lynx-dashboard-api-token lynx-dashboard-kek lynx-dashboard-pepper \
-                  lynx-dashboard-jwt-sign-private lynx-dashboard-jwt-sign-public \
-                  lynx-dashboard-jwt-enc-private lynx-dashboard-jwt-enc-public \
-                  lynx-dashboard-ca-private lynx-dashboard-ca-public \
-                  lynx-dashboard-x509-ca-cert lynx-dashboard-x509-ca-key \
-                  lynx-dashboard-setup-token \
-                  lynx-dashboard-local-agent-psk; do
+    for secret in helmly-dashboard-pg-root helmly-dashboard-pg-pass helmly-dashboard-redis-pass \
+                  helmly-dashboard-database-url helmly-dashboard-redis-url \
+                  helmly-dashboard-api-token helmly-dashboard-kek helmly-dashboard-pepper \
+                  helmly-dashboard-jwt-sign-private helmly-dashboard-jwt-sign-public \
+                  helmly-dashboard-jwt-enc-private helmly-dashboard-jwt-enc-public \
+                  helmly-dashboard-ca-private helmly-dashboard-ca-public \
+                  helmly-dashboard-x509-ca-cert helmly-dashboard-x509-ca-key \
+                  helmly-dashboard-setup-token \
+                  helmly-dashboard-local-agent-psk; do
         podman secret rm "$secret" 2>/dev/null || true
     done
     podman secret ls --format '{{.Name}}' 2>/dev/null | grep '^lynx-' | xargs -r podman secret rm 2>/dev/null || true
-    rm -rf /etc/lynx/secrets
+    rm -rf /etc/glyndor/helmly/secrets
 
     # Remove WireGuard interface
     if ip link show wg-helmly-dash &>/dev/null; then
@@ -142,15 +142,15 @@ _cleanup_existing() {
     rm -f "$WG_DIR/wg-helmly-dash.conf"
 
     # Remove systemd units
-    systemctl disable --now lynx-dashboard-containers.service 2>/dev/null || true
-    systemctl disable --now lynx-dashboard-rotate-certs.timer 2>/dev/null || true
-    rm -f /etc/systemd/system/lynx-dashboard-containers.service
-    rm -f /etc/systemd/system/lynx-dashboard-rotate-certs.{service,timer}
+    systemctl disable --now helmly-dashboard-containers.service 2>/dev/null || true
+    systemctl disable --now helmly-dashboard-rotate-certs.timer 2>/dev/null || true
+    rm -f /etc/systemd/system/helmly-dashboard-containers.service
+    rm -f /etc/systemd/system/helmly-dashboard-rotate-certs.{service,timer}
     systemctl daemon-reload
 
     # Flush nftables tables managed by the dashboard install
-    nft delete table inet lynx-dashboard 2>/dev/null || true
-    rm -f /etc/nftables-lynx-dashboard.conf
+    nft delete table inet helmly-dashboard 2>/dev/null || true
+    rm -f /etc/nftables-helmly-dashboard.conf
     nft delete table inet helmly-agent 2>/dev/null || true
 
     rm -rf "$LYNX_DIR"
@@ -158,17 +158,17 @@ _cleanup_existing() {
 }
 
 # --- Stop stray containers from partial installs ----------------------------
-# Run unconditionally so a manually-cleaned /etc/lynx does not leave containers
+# Run unconditionally so a manually-cleaned /etc/glyndor/helmly does not leave containers
 # running that would hold volumes open and block removal.
-for _ctr in lynx-dashboard-postgres lynx-dashboard-valkey lynx-dashboard-backend \
-             lynx-dashboard-frontend lynx-dashboard-nginx; do
+for _ctr in helmly-dashboard-postgres helmly-dashboard-valkey helmly-dashboard-backend \
+             helmly-dashboard-frontend helmly-dashboard-nginx; do
     podman stop --time 5 "$_ctr" 2>/dev/null || true
     podman rm -f "$_ctr" 2>/dev/null || true
 done
 # Purge stale aardvark-dns config files for dashboard networks. When containers
 # are force-removed, aardvark-dns sometimes retains phantom entries that cause
 # the next network create to use a stale gateway IP, breaking DNS resolution.
-for _net in lynx-dashboard-db lynx-dashboard-cache lynx-dashboard-app; do
+for _net in helmly-dashboard-db helmly-dashboard-cache helmly-dashboard-app; do
     rm -f "/run/containers/networks/aardvark-dns/$_net" 2>/dev/null || true
 done
 unset _net
@@ -309,11 +309,11 @@ existing_reason=""
 
 if podman network ls --format '{{.Name}}' 2>/dev/null | grep -q '^lynx-dashboard'; then
     existing=true
-    existing_reason+=" Podman networks lynx-dashboard-* found."
+    existing_reason+=" Podman networks helmly-dashboard-* found."
 fi
 if podman ps -a --format '{{.Names}}' 2>/dev/null | grep -q '^lynx-dashboard'; then
     existing=true
-    existing_reason+=" Containers lynx-dashboard-* found."
+    existing_reason+=" Containers helmly-dashboard-* found."
 fi
 if podman secret ls --format '{{.Name}}' 2>/dev/null | grep -q '^lynx-'; then
     existing=true
@@ -430,7 +430,7 @@ _require_cmd() {
 _apt_ensure podman         podman
 # podman-compose replaced by `podup` (Rust binary shipped with the release),
 # which removes the python3 / pip3 runtime dependency entirely.
-# openssl replaced by `lynx-dashboard-backend` subcommands for random/keypair/cert ops.
+# openssl replaced by `helmly-dashboard-backend` subcommands for random/keypair/cert ops.
 _apt_ensure nft            nftables
 _apt_ensure wg             wireguard-tools
 _apt_ensure curl           curl
@@ -501,7 +501,7 @@ if _version_lt "$_netavark_ver" "$NETAVARK_REQUIRED"; then
         *) log_error "Unsupported arch for netavark upgrade: $_uname_m"; exit 1 ;;
     esac
     NETAVARK_DL="https://github.com/containers/netavark/releases/download/v${NETAVARK_UPSTREAM_VER}/${_na_asset}"
-    NETAVARK_TMP="$(mktemp /tmp/lynx-netavark.XXXXXX.gz)"
+    NETAVARK_TMP="$(mktemp /tmp/helmly-netavark.XXXXXX.gz)"
     if ! curl -fsSL --max-time 120 "$NETAVARK_DL" -o "$NETAVARK_TMP"; then
         log_error "Failed to download netavark from $NETAVARK_DL"
         rm -f "$NETAVARK_TMP"
@@ -523,8 +523,8 @@ if ! grep -q 'firewall_driver.*nftables' /etc/containers/containers.conf 2>/dev/
     {
         grep -v 'network_backend\|firewall_driver\|\[network\]' /etc/containers/containers.conf 2>/dev/null || true
         printf '\n[network]\nnetwork_backend = "netavark"\nfirewall_driver = "nftables"\n'
-    } > /tmp/lynx-containers.conf
-    mv /tmp/lynx-containers.conf /etc/containers/containers.conf
+    } > /tmp/helmly-containers.conf
+    mv /tmp/helmly-containers.conf /etc/containers/containers.conf
     log_ok "Podman configured: netavark backend, nftables firewall driver"
 fi
 
@@ -575,9 +575,9 @@ log_ok "Directories created"
 log_section "Creating Podman networks"
 
 for spec in \
-    "lynx-dashboard-db:${DASHBOARD_DB_SUBNET}" \
-    "lynx-dashboard-cache:${DASHBOARD_CACHE_SUBNET}" \
-    "lynx-dashboard-app:${DASHBOARD_APP_SUBNET}"; do
+    "helmly-dashboard-db:${DASHBOARD_DB_SUBNET}" \
+    "helmly-dashboard-cache:${DASHBOARD_CACHE_SUBNET}" \
+    "helmly-dashboard-app:${DASHBOARD_APP_SUBNET}"; do
     net="${spec%%:*}"
     subnet="${spec##*:}"
     if podman network exists "$net" 2>/dev/null; then
@@ -592,7 +592,7 @@ done
 #
 # The backend binary is needed BEFORE secret generation: every Lynx crypto
 # primitive (random tokens, Ed25519/X25519 keypairs, X.509 CA) is produced by
-# `lynx-dashboard-backend` subcommands so the host does not need `openssl`.
+# `helmly-dashboard-backend` subcommands so the host does not need `openssl`.
 # Binaries are signed with Ed25519; the public key is hardcoded below and the
 # private key lives only in GitHub Actions secrets.
 
@@ -635,8 +635,8 @@ log_ok "Latest release: ${LATEST_TAG}"
 # LYNX_RELEASE_BASE lets local-host testing point binary downloads at a private
 # HTTP server (e.g. `python3 -m http.server`) before a real release exists.
 RELEASE_BASE="${LYNX_RELEASE_BASE:-https://github.com/${GITHUB_REPO}/releases/download/${LATEST_TAG}}"
-BIN_DIR="/etc/lynx/bin"
-FRONTEND_DIR="/etc/lynx/frontend"
+BIN_DIR="/etc/glyndor/helmly/bin"
+FRONTEND_DIR="/etc/glyndor/helmly/frontend"
 
 mkdir -p "$BIN_DIR" "$FRONTEND_DIR"
 chmod 700 "$BIN_DIR" "$FRONTEND_DIR"
@@ -679,8 +679,8 @@ if ! python3 -c "from cryptography.hazmat.primitives.asymmetric.ed25519 import E
 fi
 
 log_info "Downloading backend binary..."
-BACKEND_FILE="${BIN_DIR}/lynx-dashboard-backend"
-BACKEND_TMP="${BIN_DIR}/lynx-dashboard-backend.new"
+BACKEND_FILE="${BIN_DIR}/helmly-dashboard-backend"
+BACKEND_TMP="${BIN_DIR}/helmly-dashboard-backend.new"
 
 curl -fsSL --max-time 300 \
     "${RELEASE_BASE}/helmly-dashboard-backend-linux-${ARCH}" \
@@ -754,27 +754,27 @@ log_ok "podup installed: ${COMPOSE_FILE_BIN}"
 #
 # Secrets flow directly via pipe — never stored in files or shell history.
 # Subshells ensure vars don't leak to parent environment.
-# All cryptographic primitives are generated by the lynx-dashboard-backend
+# All cryptographic primitives are generated by the helmly-dashboard-backend
 # binary subcommands so the host does not need an `openssl` binary.
 
 log_section "Generating secrets"
 
 LB="$BACKEND_FILE"  # short alias for the rest of this section
 
-# Secrets are stored as files in /etc/lynx/secrets/ (root:root, 600).
+# Secrets are stored as files in /etc/glyndor/helmly/secrets/ (root:root, 600).
 # Containers access them via bind mounts at /run/secrets/<name>.
 # This is equivalent security to Podman secret store (both are files on disk,
 # both root-only). Using files avoids Bollard's lack of external secret support.
-SECRETS_DIR="/etc/lynx/secrets"
+SECRETS_DIR="/etc/glyndor/helmly/secrets"
 mkdir -p "$SECRETS_DIR"
 chmod 700 "$SECRETS_DIR"
 
 # pg_tde keyring directory — pg_tde manages the keyring file here.
 # Owned by UID 26 (postgres in the Percona container). Must be backed up:
-# without /etc/lynx/pg-keyring/lynx.keyring, the encrypted DB is unrecoverable.
-mkdir -p /etc/lynx/pg-keyring
-chown 26:26 /etc/lynx/pg-keyring
-chmod 700 /etc/lynx/pg-keyring
+# without /etc/glyndor/helmly/pg-keyring/helmly.keyring, the encrypted DB is unrecoverable.
+mkdir -p /etc/glyndor/helmly/pg-keyring
+chown 26:26 /etc/glyndor/helmly/pg-keyring
+chmod 700 /etc/glyndor/helmly/pg-keyring
 
 _write_secret() {
     local name="$1" value="$2"
@@ -785,38 +785,38 @@ _write_secret() {
 log_info "Generating PostgreSQL root password..."
 (
     PG_ROOT=$("$LB" gen-rand 32)
-    _write_secret lynx-dashboard-pg-root "$PG_ROOT"
+    _write_secret helmly-dashboard-pg-root "$PG_ROOT"
     # Percona PostgreSQL image runs as UID 26 (postgres) from the start — not root.
     # The bind-mounted secret file must be world-readable; the parent dir (700 root:root)
     # prevents host access from unprivileged users.
-    chmod 644 "$SECRETS_DIR/lynx-dashboard-pg-root"
+    chmod 644 "$SECRETS_DIR/helmly-dashboard-pg-root"
     PG_ROOT="$("$LB" gen-rand 32)"
 )
 
 log_info "Generating PostgreSQL app password and database URL..."
 (
     PG_PASS=$("$LB" gen-rand 32)
-    _write_secret lynx-dashboard-pg-pass "$PG_PASS"
-    chmod 644 "$SECRETS_DIR/lynx-dashboard-pg-pass"
-    _write_secret lynx-dashboard-database-url \
-        "postgresql://lynx_dashboard_app:${PG_PASS}@lynx-dashboard-postgres:5432/lynx_dashboard"
+    _write_secret helmly-dashboard-pg-pass "$PG_PASS"
+    chmod 644 "$SECRETS_DIR/helmly-dashboard-pg-pass"
+    _write_secret helmly-dashboard-database-url \
+        "postgresql://helmly_dashboard_app:${PG_PASS}@helmly-dashboard-postgres:5432/helmly_dashboard"
     PG_PASS="$("$LB" gen-rand 32)"
 )
 
 log_info "Generating Valkey password and URL..."
 (
     REDIS_PASS=$("$LB" gen-rand 32)
-    _write_secret lynx-dashboard-redis-pass "$REDIS_PASS"
-    _write_secret lynx-dashboard-redis-url "redis://:${REDIS_PASS}@lynx-dashboard-valkey:6379"
+    _write_secret helmly-dashboard-redis-pass "$REDIS_PASS"
+    _write_secret helmly-dashboard-redis-url "redis://:${REDIS_PASS}@helmly-dashboard-valkey:6379"
     REDIS_PASS="$("$LB" gen-rand 32)"
 )
 
 log_info "Generating API token..."
-_write_secret lynx-dashboard-api-token "$("$LB" gen-rand 32)"
+_write_secret helmly-dashboard-api-token "$("$LB" gen-rand 32)"
 log_info "Generating KEK (Key Encryption Key)..."
-_write_secret lynx-dashboard-kek "$("$LB" gen-rand 32 --encoding base64)"
+_write_secret helmly-dashboard-kek "$("$LB" gen-rand 32 --encoding base64)"
 log_info "Generating pepper..."
-_write_secret lynx-dashboard-pepper "$("$LB" gen-rand 32)"
+_write_secret helmly-dashboard-pepper "$("$LB" gen-rand 32)"
 
 log_info "Generating JWT signing keypair (Ed25519)..."
 DASHBOARD_SIGN_PUBKEY_FILE="/etc/glyndor/helmly/dashboard-sign-pubkey"
@@ -825,8 +825,8 @@ DASHBOARD_SIGN_PUBKEY=""
     KEYPAIR=$("$LB" gen-ed25519)
     PRIV_SEED=$(printf '%s' "$KEYPAIR" | sed -n '1p')
     DASHBOARD_SIGN_PUBKEY=$(printf '%s' "$KEYPAIR" | sed -n '2p')
-    _write_secret lynx-dashboard-jwt-sign-private "$PRIV_SEED"
-    _write_secret lynx-dashboard-jwt-sign-public "$DASHBOARD_SIGN_PUBKEY"
+    _write_secret helmly-dashboard-jwt-sign-private "$PRIV_SEED"
+    _write_secret helmly-dashboard-jwt-sign-public "$DASHBOARD_SIGN_PUBKEY"
     # Shared handoff dir with the agent (agent reads its command-signing trust
     # anchor from here). The agent owns /etc/glyndor/helmly; create it if the
     # dashboard runs first / stands alone so the public key can be dropped in.
@@ -840,33 +840,33 @@ DASHBOARD_SIGN_PUBKEY=""
 log_info "Generating JWT encryption keypair (X25519)..."
 (
     KEYPAIR=$("$LB" gen-x25519)
-    _write_secret lynx-dashboard-jwt-enc-private "$(printf '%s' "$KEYPAIR" | sed -n '1p')"
-    _write_secret lynx-dashboard-jwt-enc-public  "$(printf '%s' "$KEYPAIR" | sed -n '2p')"
+    _write_secret helmly-dashboard-jwt-enc-private "$(printf '%s' "$KEYPAIR" | sed -n '1p')"
+    _write_secret helmly-dashboard-jwt-enc-public  "$(printf '%s' "$KEYPAIR" | sed -n '2p')"
 )
 
 log_info "Generating CA keypair (Ed25519)..."
 (
     KEYPAIR=$("$LB" gen-ed25519)
-    _write_secret lynx-dashboard-ca-private "$(printf '%s' "$KEYPAIR" | sed -n '1p')"
-    _write_secret lynx-dashboard-ca-public  "$(printf '%s' "$KEYPAIR" | sed -n '2p')"
+    _write_secret helmly-dashboard-ca-private "$(printf '%s' "$KEYPAIR" | sed -n '1p')"
+    _write_secret helmly-dashboard-ca-public  "$(printf '%s' "$KEYPAIR" | sed -n '2p')"
 )
 
 log_info "Generating X.509 CA certificate for mTLS (Ed25519)..."
 (
     CA_OUT=$("$LB" gen-x509-ca)
-    _write_secret lynx-dashboard-x509-ca-cert "$(printf '%s' "$CA_OUT" | sed -n '1p')"
-    _write_secret lynx-dashboard-x509-ca-key  "$(printf '%s' "$CA_OUT" | sed -n '2p')"
+    _write_secret helmly-dashboard-x509-ca-cert "$(printf '%s' "$CA_OUT" | sed -n '1p')"
+    _write_secret helmly-dashboard-x509-ca-key  "$(printf '%s' "$CA_OUT" | sed -n '2p')"
 )
 
 log_info "Generating setup token (one-time bootstrap)..."
 SETUP_TOKEN=$("$LB" gen-rand 32)
-_write_secret lynx-dashboard-setup-token "$SETUP_TOKEN"
+_write_secret helmly-dashboard-setup-token "$SETUP_TOKEN"
 log_ok "All secrets generated"
 unset LB
 
 # Download and verify frontend binary + assets
 log_info "Downloading frontend binary..."
-FRONTEND_BIN_TMP="${FRONTEND_DIR}/lynx-dashboard-frontend.new"
+FRONTEND_BIN_TMP="${FRONTEND_DIR}/helmly-dashboard-frontend.new"
 FRONTEND_ASSETS_TMP="${FRONTEND_DIR}/assets.new.tar.gz"
 
 curl -fsSL --max-time 300 \
@@ -903,7 +903,7 @@ rm -f "${FRONTEND_ASSETS_TMP}.sig"
 
 # Place frontend binary and extract assets into FRONTEND_DIR
 # Binary runs from FRONTEND_DIR so __dirname resolves static assets correctly
-mv "$FRONTEND_BIN_TMP" "${FRONTEND_DIR}/lynx-dashboard-frontend"
+mv "$FRONTEND_BIN_TMP" "${FRONTEND_DIR}/helmly-dashboard-frontend"
 tar -xzf "$FRONTEND_ASSETS_TMP" -C "$FRONTEND_DIR"
 rm -f "$FRONTEND_ASSETS_TMP"
 
@@ -914,14 +914,14 @@ log_ok "Frontend installed: ${FRONTEND_DIR}/"
 cat > "$COMPOSE_FILE" << 'COMPOSE_EOF'
 services:
   nginx:
-    container_name: lynx-dashboard-nginx
+    container_name: helmly-dashboard-nginx
     image: docker.io/library/nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
     ports:
       - "19443:19443"
     volumes:
-      - /etc/lynx/tls:/etc/lynx/tls:ro
-      - /etc/lynx/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      - /etc/lynx/nginx/updating.html:/etc/lynx/nginx/updating.html:ro
+      - /etc/glyndor/helmly/tls:/etc/glyndor/helmly/tls:ro
+      - /etc/glyndor/helmly/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/glyndor/helmly/nginx/updating.html:/etc/glyndor/helmly/nginx/updating.html:ro
     depends_on:
       frontend:
         condition: service_healthy
@@ -933,22 +933,22 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      lynx-dashboard-app:
+      helmly-dashboard-app:
         ipv4_address: 10.89.2.4
 
   frontend:
-    container_name: lynx-dashboard-frontend
+    container_name: helmly-dashboard-frontend
     image: docker.io/library/alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
-    working_dir: /etc/lynx/frontend
-    command: ["/bin/sh", "-c", "apk add --no-cache libgcc libstdc++ && exec /etc/lynx/frontend/lynx-dashboard-frontend"]
+    working_dir: /etc/glyndor/helmly/frontend
+    command: ["/bin/sh", "-c", "apk add --no-cache libgcc libstdc++ && exec /etc/glyndor/helmly/frontend/helmly-dashboard-frontend"]
     environment:
       - NODE_ENV=production
       - PORT=3000
       - HOSTNAME=0.0.0.0
-      - BACKEND_URL=http://lynx-dashboard-backend:8080
+      - BACKEND_URL=http://helmly-dashboard-backend:8080
       - NEXT_TELEMETRY_DISABLED=1
     volumes:
-      - /etc/lynx/frontend:/etc/lynx/frontend
+      - /etc/glyndor/helmly/frontend:/etc/glyndor/helmly/frontend
     depends_on:
       backend:
         condition: service_healthy
@@ -960,50 +960,50 @@ services:
       start_period: 30s
     restart: unless-stopped
     networks:
-      lynx-dashboard-app:
+      helmly-dashboard-app:
         ipv4_address: 10.89.2.3
 
   backend:
-    container_name: lynx-dashboard-backend
+    container_name: helmly-dashboard-backend
     image: docker.io/library/alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
-    command: ["/etc/lynx/bin/lynx-dashboard-backend"]
+    command: ["/etc/glyndor/helmly/bin/helmly-dashboard-backend"]
     ports:
       - "10.100.0.1:8080:8080"
     environment:
-      - DATABASE_URL_FILE=/run/secrets/lynx-dashboard-database-url
-      - REDIS_URL_FILE=/run/secrets/lynx-dashboard-redis-url
-      - INTERNAL_API_TOKEN_FILE=/run/secrets/lynx-dashboard-api-token
-      - KEK_FILE=/run/secrets/lynx-dashboard-kek
-      - PEPPER_FILE=/run/secrets/lynx-dashboard-pepper
-      - JWT_SIGN_PRIVATE_KEY_FILE=/run/secrets/lynx-dashboard-jwt-sign-private
-      - JWT_SIGN_PUBLIC_KEY_FILE=/run/secrets/lynx-dashboard-jwt-sign-public
-      - JWT_ENC_PRIVATE_KEY_FILE=/run/secrets/lynx-dashboard-jwt-enc-private
-      - JWT_ENC_PUBLIC_KEY_FILE=/run/secrets/lynx-dashboard-jwt-enc-public
-      - CA_PRIVATE_KEY_FILE=/run/secrets/lynx-dashboard-ca-private
-      - CA_PUBLIC_KEY_FILE=/run/secrets/lynx-dashboard-ca-public
-      - X509_CA_CERT_FILE=/run/secrets/lynx-dashboard-x509-ca-cert
-      - X509_CA_KEY_FILE=/run/secrets/lynx-dashboard-x509-ca-key
-      - SETUP_TOKEN_FILE=/run/secrets/lynx-dashboard-setup-token
+      - DATABASE_URL_FILE=/run/secrets/helmly-dashboard-database-url
+      - REDIS_URL_FILE=/run/secrets/helmly-dashboard-redis-url
+      - INTERNAL_API_TOKEN_FILE=/run/secrets/helmly-dashboard-api-token
+      - KEK_FILE=/run/secrets/helmly-dashboard-kek
+      - PEPPER_FILE=/run/secrets/helmly-dashboard-pepper
+      - JWT_SIGN_PRIVATE_KEY_FILE=/run/secrets/helmly-dashboard-jwt-sign-private
+      - JWT_SIGN_PUBLIC_KEY_FILE=/run/secrets/helmly-dashboard-jwt-sign-public
+      - JWT_ENC_PRIVATE_KEY_FILE=/run/secrets/helmly-dashboard-jwt-enc-private
+      - JWT_ENC_PUBLIC_KEY_FILE=/run/secrets/helmly-dashboard-jwt-enc-public
+      - CA_PRIVATE_KEY_FILE=/run/secrets/helmly-dashboard-ca-private
+      - CA_PUBLIC_KEY_FILE=/run/secrets/helmly-dashboard-ca-public
+      - X509_CA_CERT_FILE=/run/secrets/helmly-dashboard-x509-ca-cert
+      - X509_CA_KEY_FILE=/run/secrets/helmly-dashboard-x509-ca-key
+      - SETUP_TOKEN_FILE=/run/secrets/helmly-dashboard-setup-token
       - RUST_LOG=${RUST_LOG:-info}
     volumes:
-      - /etc/lynx/bin:/etc/lynx/bin
-      - /etc/lynx/frontend:/etc/lynx/frontend
+      - /etc/glyndor/helmly/bin:/etc/glyndor/helmly/bin
+      - /etc/glyndor/helmly/frontend:/etc/glyndor/helmly/frontend
       - /run/podman/podman.sock:/run/podman/podman.sock
-      - /etc/lynx/secrets:/etc/lynx/secrets:rw
-      - /etc/lynx/secrets/lynx-dashboard-database-url:/run/secrets/lynx-dashboard-database-url:ro
-      - /etc/lynx/secrets/lynx-dashboard-redis-url:/run/secrets/lynx-dashboard-redis-url:ro
-      - /etc/lynx/secrets/lynx-dashboard-api-token:/run/secrets/lynx-dashboard-api-token:ro
-      - /etc/lynx/secrets/lynx-dashboard-kek:/run/secrets/lynx-dashboard-kek:ro
-      - /etc/lynx/secrets/lynx-dashboard-pepper:/run/secrets/lynx-dashboard-pepper:ro
-      - /etc/lynx/secrets/lynx-dashboard-jwt-sign-private:/run/secrets/lynx-dashboard-jwt-sign-private:ro
-      - /etc/lynx/secrets/lynx-dashboard-jwt-sign-public:/run/secrets/lynx-dashboard-jwt-sign-public:ro
-      - /etc/lynx/secrets/lynx-dashboard-jwt-enc-private:/run/secrets/lynx-dashboard-jwt-enc-private:ro
-      - /etc/lynx/secrets/lynx-dashboard-jwt-enc-public:/run/secrets/lynx-dashboard-jwt-enc-public:ro
-      - /etc/lynx/secrets/lynx-dashboard-ca-private:/run/secrets/lynx-dashboard-ca-private:ro
-      - /etc/lynx/secrets/lynx-dashboard-ca-public:/run/secrets/lynx-dashboard-ca-public:ro
-      - /etc/lynx/secrets/lynx-dashboard-x509-ca-cert:/run/secrets/lynx-dashboard-x509-ca-cert:ro
-      - /etc/lynx/secrets/lynx-dashboard-x509-ca-key:/run/secrets/lynx-dashboard-x509-ca-key:ro
-      - /etc/lynx/secrets/lynx-dashboard-setup-token:/run/secrets/lynx-dashboard-setup-token:ro
+      - /etc/glyndor/helmly/secrets:/etc/glyndor/helmly/secrets:rw
+      - /etc/glyndor/helmly/secrets/helmly-dashboard-database-url:/run/secrets/helmly-dashboard-database-url:ro
+      - /etc/glyndor/helmly/secrets/helmly-dashboard-redis-url:/run/secrets/helmly-dashboard-redis-url:ro
+      - /etc/glyndor/helmly/secrets/helmly-dashboard-api-token:/run/secrets/helmly-dashboard-api-token:ro
+      - /etc/glyndor/helmly/secrets/helmly-dashboard-kek:/run/secrets/helmly-dashboard-kek:ro
+      - /etc/glyndor/helmly/secrets/helmly-dashboard-pepper:/run/secrets/helmly-dashboard-pepper:ro
+      - /etc/glyndor/helmly/secrets/helmly-dashboard-jwt-sign-private:/run/secrets/helmly-dashboard-jwt-sign-private:ro
+      - /etc/glyndor/helmly/secrets/helmly-dashboard-jwt-sign-public:/run/secrets/helmly-dashboard-jwt-sign-public:ro
+      - /etc/glyndor/helmly/secrets/helmly-dashboard-jwt-enc-private:/run/secrets/helmly-dashboard-jwt-enc-private:ro
+      - /etc/glyndor/helmly/secrets/helmly-dashboard-jwt-enc-public:/run/secrets/helmly-dashboard-jwt-enc-public:ro
+      - /etc/glyndor/helmly/secrets/helmly-dashboard-ca-private:/run/secrets/helmly-dashboard-ca-private:ro
+      - /etc/glyndor/helmly/secrets/helmly-dashboard-ca-public:/run/secrets/helmly-dashboard-ca-public:ro
+      - /etc/glyndor/helmly/secrets/helmly-dashboard-x509-ca-cert:/run/secrets/helmly-dashboard-x509-ca-cert:ro
+      - /etc/glyndor/helmly/secrets/helmly-dashboard-x509-ca-key:/run/secrets/helmly-dashboard-x509-ca-key:ro
+      - /etc/glyndor/helmly/secrets/helmly-dashboard-setup-token:/run/secrets/helmly-dashboard-setup-token:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -1017,66 +1017,66 @@ services:
       start_period: 15s
     restart: unless-stopped
     networks:
-      lynx-dashboard-db:
+      helmly-dashboard-db:
         ipv4_address: 10.89.0.3
-      lynx-dashboard-cache:
+      helmly-dashboard-cache:
         ipv4_address: 10.89.1.3
-      lynx-dashboard-app:
+      helmly-dashboard-app:
         ipv4_address: 10.89.2.2
 
   postgres:
-    container_name: lynx-dashboard-postgres
+    container_name: helmly-dashboard-postgres
     image: docker.io/percona/percona-distribution-postgresql@sha256:71cce6ed329d4108461eeaa40fb0c1517bee2e0f78051cee40a4b010eed448c3
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_DB=lynx_dashboard
-      - POSTGRES_PASSWORD_FILE=/run/secrets/lynx-dashboard-pg-root
+      - POSTGRES_DB=helmly_dashboard
+      - POSTGRES_PASSWORD_FILE=/run/secrets/helmly-dashboard-pg-root
       - POSTGRES_INITDB_ARGS=-c shared_preload_libraries=pg_tde
     volumes:
       - postgres_data:/data/db
-      - /etc/lynx/secrets/lynx-dashboard-pg-root:/run/secrets/lynx-dashboard-pg-root:ro
-      - /etc/lynx/secrets/lynx-dashboard-pg-pass:/run/secrets/lynx-dashboard-pg-pass:ro
-      - /etc/lynx/pg-keyring:/var/pg-keyring
+      - /etc/glyndor/helmly/secrets/helmly-dashboard-pg-root:/run/secrets/helmly-dashboard-pg-root:ro
+      - /etc/glyndor/helmly/secrets/helmly-dashboard-pg-pass:/run/secrets/helmly-dashboard-pg-pass:ro
+      - /etc/glyndor/helmly/pg-keyring:/var/pg-keyring
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d lynx_dashboard"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d helmly_dashboard"]
       interval: 5s
       timeout: 3s
       retries: 10
     restart: unless-stopped
     networks:
-      lynx-dashboard-db:
+      helmly-dashboard-db:
         ipv4_address: 10.89.0.2
 
   valkey:
-    container_name: lynx-dashboard-valkey
+    container_name: helmly-dashboard-valkey
     image: docker.io/valkey/valkey@sha256:b027235326507cfdade9b6684056ec1d0b0c0757412e628245129b5d7b788618
     command:
       - sh
       - -c
-      - 'valkey-server --save "" --appendonly no --requirepass "$(cat /run/secrets/lynx-dashboard-redis-pass)"'
+      - 'valkey-server --save "" --appendonly no --requirepass "$(cat /run/secrets/helmly-dashboard-redis-pass)"'
     volumes:
-      - /etc/lynx/secrets/lynx-dashboard-redis-pass:/run/secrets/lynx-dashboard-redis-pass:ro
+      - /etc/glyndor/helmly/secrets/helmly-dashboard-redis-pass:/run/secrets/helmly-dashboard-redis-pass:ro
     healthcheck:
       test:
         - CMD-SHELL
-        - 'valkey-cli -a "$(cat /run/secrets/lynx-dashboard-redis-pass)" ping'
+        - 'valkey-cli -a "$(cat /run/secrets/helmly-dashboard-redis-pass)" ping'
       interval: 5s
       timeout: 3s
       retries: 10
     restart: unless-stopped
     networks:
-      lynx-dashboard-cache:
+      helmly-dashboard-cache:
         ipv4_address: 10.89.1.2
 
 volumes:
   postgres_data:
 
 networks:
-  lynx-dashboard-db:
+  helmly-dashboard-db:
     external: true
-  lynx-dashboard-cache:
+  helmly-dashboard-cache:
     external: true
-  lynx-dashboard-app:
+  helmly-dashboard-app:
     external: true
 
 COMPOSE_EOF
@@ -1084,7 +1084,7 @@ COMPOSE_EOF
 chmod 644 "$COMPOSE_FILE"
 log_ok "docker-compose.yml written: ${COMPOSE_FILE}"
 
-printf '%s' "${LATEST_TAG#dashboard@}" > "$BIN_DIR/lynx-dashboard-version"
+printf '%s' "${LATEST_TAG#dashboard@}" > "$BIN_DIR/helmly-dashboard-version"
 log_ok "Version: ${LATEST_TAG#dashboard@}"
 
 # --- Start services ---------------------------------------------------------
@@ -1094,11 +1094,11 @@ log_section "Starting services"
 # Remove any stale postgres_data volume from a partial previous install.
 # podup does not prefix named volumes with the project name so the
 # volume is always called 'postgres_data'. Stale data causes postgres to skip
-# init on the next clean install, leaving lynx_dashboard_app with no password.
+# init on the next clean install, leaving helmly_dashboard_app with no password.
 # Use --force and a direct directory removal as belt-and-suspenders: Podman
 # sometimes keeps a ghost reference that makes 'volume rm' fail silently.
-podman stop lynx-dashboard-postgres 2>/dev/null || true
-podman rm -f lynx-dashboard-postgres 2>/dev/null || true
+podman stop helmly-dashboard-postgres 2>/dev/null || true
+podman rm -f helmly-dashboard-postgres 2>/dev/null || true
 podman volume rm --force postgres_data 2>/dev/null || true
 rm -rf /var/lib/containers/storage/volumes/postgres_data 2>/dev/null || true
 
@@ -1108,8 +1108,8 @@ log_info "Starting PostgreSQL..."
 
 log_info "Waiting for PostgreSQL to be healthy..."
 for i in $(seq 1 30); do
-    if podman healthcheck run lynx-dashboard-postgres 2>/dev/null | grep -q healthy ||
-       podman inspect lynx-dashboard-postgres --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy; then
+    if podman healthcheck run helmly-dashboard-postgres 2>/dev/null | grep -q healthy ||
+       podman inspect helmly-dashboard-postgres --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy; then
         log_ok "PostgreSQL is healthy"
         break
     fi
@@ -1124,31 +1124,31 @@ done
 # Direct psql avoids the docker-entrypoint-initdb.d mechanism which only runs
 # on a completely empty PGDATA directory and silently skips on reinstalls.
 log_info "Initializing PostgreSQL app user and encryption..."
-_PG_PASS=$(cat "$SECRETS_DIR/lynx-dashboard-pg-pass")
-podman exec -i lynx-dashboard-postgres psql -U postgres -d lynx_dashboard << SQL
+_PG_PASS=$(cat "$SECRETS_DIR/helmly-dashboard-pg-pass")
+podman exec -i helmly-dashboard-postgres psql -U postgres -d helmly_dashboard << SQL
 DO \$\$
 BEGIN
-  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'lynx_dashboard_app') THEN
-    CREATE USER lynx_dashboard_app WITH NOSUPERUSER NOCREATEDB NOCREATEROLE;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'helmly_dashboard_app') THEN
+    CREATE USER helmly_dashboard_app WITH NOSUPERUSER NOCREATEDB NOCREATEROLE;
   END IF;
 END
 \$\$;
-ALTER USER lynx_dashboard_app PASSWORD '${_PG_PASS}';
-GRANT CONNECT ON DATABASE lynx_dashboard TO lynx_dashboard_app;
-GRANT USAGE, CREATE ON SCHEMA public TO lynx_dashboard_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO lynx_dashboard_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO lynx_dashboard_app;
+ALTER USER helmly_dashboard_app PASSWORD '${_PG_PASS}';
+GRANT CONNECT ON DATABASE helmly_dashboard TO helmly_dashboard_app;
+GRANT USAGE, CREATE ON SCHEMA public TO helmly_dashboard_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO helmly_dashboard_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO helmly_dashboard_app;
 
 -- Enable transparent storage encryption via pg_tde (AES-256).
--- The keyring file is created and managed by pg_tde at /var/pg-keyring/lynx.keyring.
--- All future tables in lynx_dashboard will be transparently encrypted (tde_heap).
--- BACKUP REQUIREMENT: /etc/lynx/pg-keyring/lynx.keyring must be backed up --
+-- The keyring file is created and managed by pg_tde at /var/pg-keyring/helmly.keyring.
+-- All future tables in helmly_dashboard will be transparently encrypted (tde_heap).
+-- BACKUP REQUIREMENT: /etc/glyndor/helmly/pg-keyring/helmly.keyring must be backed up --
 -- without it, the encrypted database is unrecoverable even with a valid pg_dump.
 CREATE EXTENSION IF NOT EXISTS pg_tde;
-SELECT pg_tde_add_database_key_provider_file('lynx-keyring', '/var/pg-keyring/lynx.keyring');
-SELECT pg_tde_create_key_using_database_key_provider('lynx-dashboard-key', 'lynx-keyring');
-SELECT pg_tde_set_key_using_database_key_provider('lynx-dashboard-key', 'lynx-keyring');
-ALTER DATABASE lynx_dashboard SET default_table_access_method = tde_heap;
+SELECT pg_tde_add_database_key_provider_file('helmly-keyring', '/var/pg-keyring/helmly.keyring');
+SELECT pg_tde_create_key_using_database_key_provider('helmly-dashboard-key', 'helmly-keyring');
+SELECT pg_tde_set_key_using_database_key_provider('helmly-dashboard-key', 'helmly-keyring');
+ALTER DATABASE helmly_dashboard SET default_table_access_method = tde_heap;
 SQL
 unset _PG_PASS
 log_ok "PostgreSQL app user and encryption initialized"
@@ -1159,7 +1159,7 @@ log_info "Starting Valkey..."
 
 log_info "Waiting for Valkey to be healthy..."
 for i in $(seq 1 30); do
-    if podman inspect lynx-dashboard-valkey --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy; then
+    if podman inspect helmly-dashboard-valkey --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy; then
         log_ok "Valkey is healthy"
         break
     fi
@@ -1180,7 +1180,7 @@ DASHBOARD_PRIV=$(wg genkey)
 DASHBOARD_PUB=$(printf '%s' "$DASHBOARD_PRIV" | wg pubkey)
 AGENT_PSK=$(wg genpsk)
 # Save PSK to a secret file for the backend to use when managing peers.
-_write_secret lynx-dashboard-local-agent-psk "$AGENT_PSK"
+_write_secret helmly-dashboard-local-agent-psk "$AGENT_PSK"
 
 cat > "$WG_CONF" << EOF
 [Interface]
@@ -1237,13 +1237,13 @@ log_info "Starting backend..."
 
 log_info "Waiting for backend to be healthy..."
 for i in $(seq 1 40); do
-    if podman inspect lynx-dashboard-backend --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy; then
+    if podman inspect helmly-dashboard-backend --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy; then
         log_ok "Backend is healthy"
         break
     fi
     if [[ $i -eq 40 ]]; then
         log_error "Backend did not become healthy in time"
-        podman logs --tail 50 lynx-dashboard-backend
+        podman logs --tail 50 helmly-dashboard-backend
         exit 1
     fi
     sleep 3
@@ -1256,13 +1256,13 @@ log_info "Starting frontend..."
 
 log_info "Waiting for frontend to be healthy..."
 for i in $(seq 1 40); do
-    if podman inspect lynx-dashboard-frontend --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy; then
+    if podman inspect helmly-dashboard-frontend --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy; then
         log_ok "Frontend is healthy"
         break
     fi
     if [[ $i -eq 40 ]]; then
         log_error "Frontend did not become healthy in time"
-        podman logs --tail 30 lynx-dashboard-frontend
+        podman logs --tail 30 helmly-dashboard-frontend
         exit 1
     fi
     sleep 3
@@ -1291,23 +1291,23 @@ _generate_cert() {
 _generate_cert
 
 # Systemd timer for certificate rotation (90-day renewal)
-cat > /etc/systemd/system/lynx-dashboard-rotate-certs.service << 'EOF'
+cat > /etc/systemd/system/helmly-dashboard-rotate-certs.service << 'EOF'
 [Unit]
 Description=Lynx Dashboard — rotate TLS certificate
 After=network.target
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c '/etc/lynx/bin/lynx-dashboard-backend cert-self-signed \
+ExecStart=/bin/bash -c '/etc/glyndor/helmly/bin/helmly-dashboard-backend cert-self-signed \
     --cn "$(hostname -f)" \
     --days 90 \
-    --cert-out /etc/lynx/tls/dashboard.crt \
-    --key-out /etc/lynx/tls/dashboard.key \
-    && chmod 600 /etc/lynx/tls/dashboard.key \
-    && podman kill -s HUP lynx-dashboard-nginx'
+    --cert-out /etc/glyndor/helmly/tls/dashboard.crt \
+    --key-out /etc/glyndor/helmly/tls/dashboard.key \
+    && chmod 600 /etc/glyndor/helmly/tls/dashboard.key \
+    && podman kill -s HUP helmly-dashboard-nginx'
 EOF
 
-cat > /etc/systemd/system/lynx-dashboard-rotate-certs.timer << 'EOF'
+cat > /etc/systemd/system/helmly-dashboard-rotate-certs.timer << 'EOF'
 [Unit]
 Description=Lynx Dashboard — TLS certificate rotation (every 80 days)
 
@@ -1323,7 +1323,7 @@ WantedBy=timers.target
 EOF
 
 systemctl daemon-reload
-systemctl enable --now lynx-dashboard-rotate-certs.timer
+systemctl enable --now helmly-dashboard-rotate-certs.timer
 log_ok "Certificate rotation timer enabled (every 80 days)"
 
 # --- nginx TLS reverse proxy ------------------------------------------------
@@ -1331,11 +1331,11 @@ log_ok "Certificate rotation timer enabled (every 80 days)"
 log_section "Configuring nginx TLS reverse proxy"
 
 # nginx config: TLS termination on 19443, proxy to frontend.
-# The resolver directive points at Podman's embedded DNS (the lynx-dashboard-app
+# The resolver directive points at Podman's embedded DNS (the helmly-dashboard-app
 # network gateway, always the .1 of whichever subnet Netavark assigns).  Using a
 # variable for proxy_pass forces nginx to re-resolve the "frontend" hostname on
 # every request so it picks up the new container IP after an auto-update restart.
-NGINX_RESOLVER=$(podman network inspect lynx-dashboard-app \
+NGINX_RESOLVER=$(podman network inspect helmly-dashboard-app \
     --format '{{range .Subnets}}{{.Gateway}}{{end}}' 2>/dev/null \
     || echo "10.89.2.1")
 cat > "$NGINX_DIR/default.conf" << NGINXEOF
@@ -1343,8 +1343,8 @@ server {
     listen 19443 ssl;
     listen [::]:19443 ssl;
 
-    ssl_certificate     /etc/lynx/tls/dashboard.crt;
-    ssl_certificate_key /etc/lynx/tls/dashboard.key;
+    ssl_certificate     /etc/glyndor/helmly/tls/dashboard.crt;
+    ssl_certificate_key /etc/glyndor/helmly/tls/dashboard.key;
     ssl_protocols       TLSv1.3;
     ssl_prefer_server_ciphers off;
 
@@ -1352,7 +1352,7 @@ server {
     resolver ${NGINX_RESOLVER} valid=5s ipv6=off;
 
     location / {
-        set \$upstream http://lynx-dashboard-frontend:3000;
+        set \$upstream http://helmly-dashboard-frontend:3000;
         proxy_pass         \$upstream;
         proxy_http_version 1.1;
         proxy_set_header   Upgrade \$http_upgrade;
@@ -1367,7 +1367,7 @@ server {
 
     error_page 502 503 /updating.html;
     location = /updating.html {
-        root /etc/lynx/nginx;
+        root /etc/glyndor/helmly/nginx;
     }
 }
 NGINXEOF
@@ -1391,14 +1391,14 @@ log_ok "nginx configuration written"
 # created before nginx.conf/certs existed, or have stale --requires pointing to
 # since-recreated container IDs). Start it fresh directly to bypass the dependency graph.
 log_info "Starting nginx..."
-podman rm -f lynx-dashboard-nginx 2>/dev/null || true
+podman rm -f helmly-dashboard-nginx 2>/dev/null || true
 podman run -d \
-    --name lynx-dashboard-nginx \
-    --network lynx-dashboard-app \
+    --name helmly-dashboard-nginx \
+    --network helmly-dashboard-app \
     -p "19443:19443" \
-    -v /etc/lynx/tls:/etc/lynx/tls:ro \
-    -v /etc/lynx/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro \
-    -v /etc/lynx/nginx/updating.html:/etc/lynx/nginx/updating.html:ro \
+    -v /etc/glyndor/helmly/tls:/etc/glyndor/helmly/tls:ro \
+    -v /etc/glyndor/helmly/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro \
+    -v /etc/glyndor/helmly/nginx/updating.html:/etc/glyndor/helmly/nginx/updating.html:ro \
     --restart unless-stopped \
     --health-cmd "pgrep nginx > /dev/null" \
     --health-interval 10s \
@@ -1409,13 +1409,13 @@ podman run -d \
 
 log_info "Waiting for nginx to be healthy..."
 for i in $(seq 1 20); do
-    if podman inspect lynx-dashboard-nginx --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy; then
+    if podman inspect helmly-dashboard-nginx --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy; then
         log_ok "nginx is healthy"
         break
     fi
     if [[ $i -eq 20 ]]; then
         log_error "nginx did not become healthy in time"
-        podman logs --tail 20 lynx-dashboard-nginx
+        podman logs --tail 20 helmly-dashboard-nginx
         exit 1
     fi
     sleep 3
@@ -1512,9 +1512,9 @@ log_ok "nftables rules applied (ports: 22 rate-limited, 19443, 51820 UDP)"
 # this table persists across agent nftables reloads.
 # Without this, aardvark-dns (on podman* bridges) is unreachable from containers
 # after the agent binary starts and re-renders its ruleset without DNS accept rules.
-cat > /etc/nftables-lynx-dashboard.conf << 'NFT_DASH'
-destroy table inet lynx-dashboard
-table inet lynx-dashboard {
+cat > /etc/nftables-helmly-dashboard.conf << 'NFT_DASH'
+destroy table inet helmly-dashboard
+table inet helmly-dashboard {
     chain allow-container-dns {
         type filter hook input priority filter - 1; policy accept;
         iifname "podman*" udp dport 53 accept
@@ -1523,17 +1523,17 @@ table inet lynx-dashboard {
 }
 NFT_DASH
 
-nft -f /etc/nftables-lynx-dashboard.conf
+nft -f /etc/nftables-helmly-dashboard.conf
 log_ok "Dashboard nftables (container DNS) applied"
 
 # Persist across reboots — migrate away from old lynx-dashboard include
 if [[ -f /etc/nftables.conf ]]; then
-    sed -i '/nftables-lynx-dashboard/d' /etc/nftables.conf
+    sed -i '/nftables-helmly-dashboard/d' /etc/nftables.conf
     if ! grep -q "nftables-helmly-agent" /etc/nftables.conf; then
         echo 'include "/etc/nftables-helmly-agent.conf"' >> /etc/nftables.conf
     fi
-    if ! grep -q "nftables-lynx-dashboard" /etc/nftables.conf; then
-        echo 'include "/etc/nftables-lynx-dashboard.conf"' >> /etc/nftables.conf
+    if ! grep -q "nftables-helmly-dashboard" /etc/nftables.conf; then
+        echo 'include "/etc/nftables-helmly-dashboard.conf"' >> /etc/nftables.conf
     fi
 fi
 systemctl enable nftables 2>/dev/null || true
@@ -1545,7 +1545,7 @@ log_section "Enabling container auto-start on reboot"
 # Podman's podman-restart.service only handles restart-policy=always.
 # Our containers use restart=unless-stopped (don't restart if manually stopped).
 # This oneshot service starts all five containers at boot, after nftables are loaded.
-cat > /etc/systemd/system/lynx-dashboard-containers.service << 'EOF'
+cat > /etc/systemd/system/helmly-dashboard-containers.service << 'EOF'
 [Unit]
 Description=Lynx Dashboard — start containers on boot
 After=network-online.target nftables.service helmly-agent.service
@@ -1555,25 +1555,25 @@ Wants=network-online.target helmly-agent.service
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=/usr/bin/podman start \
-    lynx-dashboard-postgres \
-    lynx-dashboard-valkey \
-    lynx-dashboard-backend \
-    lynx-dashboard-frontend \
-    lynx-dashboard-nginx
+    helmly-dashboard-postgres \
+    helmly-dashboard-valkey \
+    helmly-dashboard-backend \
+    helmly-dashboard-frontend \
+    helmly-dashboard-nginx
 ExecStop=/usr/bin/podman stop \
-    lynx-dashboard-nginx \
-    lynx-dashboard-frontend \
-    lynx-dashboard-backend \
-    lynx-dashboard-valkey \
-    lynx-dashboard-postgres
+    helmly-dashboard-nginx \
+    helmly-dashboard-frontend \
+    helmly-dashboard-backend \
+    helmly-dashboard-valkey \
+    helmly-dashboard-postgres
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable lynx-dashboard-containers.service
-log_ok "Container auto-start service enabled (lynx-dashboard-containers.service)"
+systemctl enable helmly-dashboard-containers.service
+log_ok "Container auto-start service enabled (helmly-dashboard-containers.service)"
 
 # --- Done -------------------------------------------------------------------
 
@@ -1611,8 +1611,8 @@ echo -e "${YELLOW}Next step:${RESET} Run the agent install script on this VPS to
 echo ""
 echo -e "${BOLD}${RED}=== BACKUP REQUIRED ===${RESET}"
 echo -e "  Back up these files — loss means permanent data loss:"
-echo -e "  ${BOLD}/etc/lynx/pg-keyring/lynx.keyring${RESET}  ← pg_tde encryption keyring"
-echo -e "  ${BOLD}/etc/lynx/secrets/lynx-dashboard-kek${RESET}  ← application KEK"
+echo -e "  ${BOLD}/etc/glyndor/helmly/pg-keyring/helmly.keyring${RESET}  ← pg_tde encryption keyring"
+echo -e "  ${BOLD}/etc/glyndor/helmly/secrets/helmly-dashboard-kek${RESET}  ← application KEK"
 echo ""
 echo -e "  ${BOLD}Made with love by Jaroc${RESET} — https://github.com/Glyndor/helmly"
 echo ""

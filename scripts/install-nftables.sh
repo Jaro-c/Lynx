@@ -58,7 +58,7 @@ install_nftables() {
     # -----------------------------------------------------------------------------
     echo -e "${CYAN}Applying base nftables ruleset...${RESET}"
 
-    cat > /tmp/lynx-nftables.conf << EOF
+    cat > /tmp/helmly-nftables.conf << EOF
 flush ruleset
 
 table inet filter {
@@ -83,8 +83,8 @@ table inet filter {
 EOF
 
     # Apply atomically — kernel loads all rules at once, no gap
-    nft -f /tmp/lynx-nftables.conf
-    rm -f /tmp/lynx-nftables.conf
+    nft -f /tmp/helmly-nftables.conf
+    rm -f /tmp/helmly-nftables.conf
 
     # Save ruleset
     nft list ruleset > /etc/nftables.conf

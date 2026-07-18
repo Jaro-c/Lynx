@@ -6,11 +6,11 @@ pub const NGINX_IMAGE: &str =
 
 /// Path where the agent stores externally-uploaded certs.
 pub fn custom_cert_path(domain: &str) -> String {
-    format!("/etc/lynx/nginx/certs/{domain}/fullchain.pem")
+    format!("/etc/glyndor/helmly/nginx/certs/{domain}/fullchain.pem")
 }
 
 pub fn custom_key_path(domain: &str) -> String {
-    format!("/etc/lynx/nginx/certs/{domain}/privkey.pem")
+    format!("/etc/glyndor/helmly/nginx/certs/{domain}/privkey.pem")
 }
 
 /// Generate nginx config. When `cert_path` is Some, uses a custom cert path
@@ -46,7 +46,7 @@ server {{
     ssl_prefer_server_ciphers off;
 {hsts_header}
     location / {{
-        proxy_pass http://lynx-dashboard-frontend:3000;
+        proxy_pass http://helmly-dashboard-frontend:3000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -89,7 +89,7 @@ server {{
     ssl_prefer_server_ciphers off;
 {hsts_header}
     location / {{
-        proxy_pass http://lynx-dashboard-frontend:3000;
+        proxy_pass http://helmly-dashboard-frontend:3000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -107,7 +107,7 @@ server {{
         root /var/www/html;
     }}
     location / {{
-        proxy_pass http://lynx-dashboard-frontend:3000;
+        proxy_pass http://helmly-dashboard-frontend:3000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

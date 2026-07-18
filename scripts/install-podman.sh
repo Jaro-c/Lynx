@@ -82,7 +82,7 @@ EOF
     # Storage
     # -----------------------------------------------------------------------------
     echo -e "${CYAN}Configuring Podman storage...${RESET}"
-    mkdir -p /opt/lynx/storage
+    mkdir -p /opt/glyndor/helmly/storage
     cat > /etc/containers/storage.conf <<'EOF'
 # Lynx — Podman storage configuration
 # Dedicated storage path to avoid filling the system root disk.
@@ -90,7 +90,7 @@ EOF
 [storage]
 driver = "overlay"
 runroot = "/run/containers/storage"
-graphroot = "/opt/lynx/storage"
+graphroot = "/opt/glyndor/helmly/storage"
 
 [storage.options]
 additionalimagestores = []
@@ -98,7 +98,7 @@ additionalimagestores = []
 [storage.options.overlay]
 mountopt = "nodev,metacopy=on"
 EOF
-    echo -e "${GREEN}Storage configured at: /opt/lynx/storage${RESET}"
+    echo -e "${GREEN}Storage configured at: /opt/glyndor/helmly/storage${RESET}"
 
     # -----------------------------------------------------------------------------
     # Logging

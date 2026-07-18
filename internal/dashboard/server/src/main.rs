@@ -222,7 +222,7 @@ async fn record_setup_token_issuance(db: &sqlx::PgPool) {
 }
 
 fn cmd_logs(follow: bool, errors: bool, since: Option<String>) -> anyhow::Result<()> {
-    let containers = ["lynx-dashboard-backend", "lynx-dashboard-frontend"];
+    let containers = ["helmly-dashboard-backend", "helmly-dashboard-frontend"];
 
     for container in &containers {
         let mut args = vec!["logs".to_string()];

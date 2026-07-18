@@ -1,17 +1,17 @@
 -- Creates isolated app user with minimal privileges.
 -- Runs once on first PostgreSQL container startup via /docker-entrypoint-initdb.d/.
--- LYNX_APP_PASS is substituted by the init wrapper using the mounted secret.
+-- HELMLY_APP_PASS is substituted by the init wrapper using the mounted secret.
 
-\set app_pass `cat /run/secrets/lynx-dashboard-pg-pass`
+\set app_pass `cat /run/secrets/helmly-dashboard-pg-pass`
 
-CREATE USER lynx_dashboard_app WITH PASSWORD :'app_pass' NOSUPERUSER NOCREATEDB NOCREATEROLE;
+CREATE USER helmly_dashboard_app WITH PASSWORD :'app_pass' NOSUPERUSER NOCREATEDB NOCREATEROLE;
 
-GRANT CONNECT ON DATABASE lynx_dashboard TO lynx_dashboard_app;
+GRANT CONNECT ON DATABASE helmly_dashboard TO helmly_dashboard_app;
 
-\connect lynx_dashboard
+\connect helmly_dashboard
 
-GRANT USAGE, CREATE ON SCHEMA public TO lynx_dashboard_app;
+GRANT USAGE, CREATE ON SCHEMA public TO helmly_dashboard_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
-    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO lynx_dashboard_app;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO helmly_dashboard_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
-    GRANT USAGE, SELECT ON SEQUENCES TO lynx_dashboard_app;
+    GRANT USAGE, SELECT ON SEQUENCES TO helmly_dashboard_app;

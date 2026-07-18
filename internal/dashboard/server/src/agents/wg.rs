@@ -5,7 +5,7 @@ use zeroize::Zeroizing;
 
 use crate::state::AppState;
 
-const SECRET_PREFIX: &str = "lynx-dashboard-wg-psk-";
+const SECRET_PREFIX: &str = "helmly-dashboard-wg-psk-";
 const SECRET_DIR: &str = "/run/secrets";
 
 fn psk_secret_name(agent_id: Uuid) -> String {
@@ -17,7 +17,7 @@ fn psk_secret_path(agent_id: Uuid) -> String {
 }
 
 /// Generate a WireGuard PSK (32 random bytes, base64-encoded) and store it
-/// as a Podman secret `lynx-dashboard-wg-psk-{agent_id}` via the Podman socket API.
+/// as a Podman secret `helmly-dashboard-wg-psk-{agent_id}` via the Podman socket API.
 /// Returns the PSK value (caller must zeroize when done).
 pub async fn create_psk(agent_id: Uuid) -> Result<Zeroizing<String>> {
     use base64ct::Encoding as _;
@@ -59,7 +59,7 @@ pub async fn read_psk(agent_id: Uuid) -> Option<Zeroizing<String>> {
 }
 
 /// Load all PSKs from mounted secret files at startup.
-/// Scans SECRET_DIR for files matching the `lynx-dashboard-wg-psk-*` pattern.
+/// Scans SECRET_DIR for files matching the `helmly-dashboard-wg-psk-*` pattern.
 pub fn load_all_psks() -> std::collections::HashMap<Uuid, Zeroizing<String>> {
     let mut map = std::collections::HashMap::new();
     let Ok(dir) = std::fs::read_dir(SECRET_DIR) else {

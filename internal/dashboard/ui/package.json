@@ -43,7 +43,7 @@
 		"typescript": "6.0.3",
 		"vitest": "4.1.7"
 	},
-	"name": "lynx-dashboard-ui",
+	"name": "helmly-dashboard-ui",
 	"private": true,
 	"scripts": {
 		"audit": "bun audit",

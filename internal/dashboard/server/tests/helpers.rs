@@ -18,7 +18,7 @@ pub async fn test_state() -> AppState {
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     let db_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://lynx:lynx_dev@localhost:5433/lynx_dashboard".to_string());
+        .unwrap_or_else(|_| "postgresql://helmly:helmly_dev@localhost:5433/helmly_dashboard".to_string());
     let redis_url =
         std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
 
@@ -253,7 +253,7 @@ pub async fn test_state_redis_down() -> AppState {
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     let db_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://lynx:lynx_dev@localhost:5433/lynx_dashboard".to_string());
+        .unwrap_or_else(|_| "postgresql://helmly:helmly_dev@localhost:5433/helmly_dashboard".to_string());
 
     let db = PgPool::connect(&db_url).await.expect("connect to test DB");
     sqlx::migrate!("./migrations")

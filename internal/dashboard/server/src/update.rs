@@ -4,11 +4,11 @@ use std::net::IpAddr;
 use std::path::PathBuf;
 use uuid::Uuid;
 
-const BINARY_PATH: &str = "/etc/lynx/bin/lynx-dashboard-backend";
-const FRONTEND_BINARY: &str = "/etc/lynx/frontend/lynx-dashboard-frontend";
-const FRONTEND_DIR: &str = "/etc/lynx/frontend";
-const FRONTEND_CONTAINER: &str = "lynx-dashboard-frontend";
-pub const VERSION_FILE: &str = "/etc/lynx/bin/dashboard-version";
+const BINARY_PATH: &str = "/etc/glyndor/helmly/bin/helmly-dashboard-backend";
+const FRONTEND_BINARY: &str = "/etc/glyndor/helmly/frontend/helmly-dashboard-frontend";
+const FRONTEND_DIR: &str = "/etc/glyndor/helmly/frontend";
+const FRONTEND_CONTAINER: &str = "helmly-dashboard-frontend";
+pub const VERSION_FILE: &str = "/etc/glyndor/helmly/bin/dashboard-version";
 const MAX_DOWNLOAD_BYTES: usize = 200 * 1024 * 1024;
 
 pub struct DashboardUpdateParams {
@@ -315,9 +315,9 @@ async fn download_bytes(url: &str) -> Result<Vec<u8>> {
 
 /// Called at startup to detect a failed update and restore `.prev` if needed.
 /// Spawns a background task: polls `/health` every 2s for 30s.
-/// If still unhealthy → restores `.prev`, writes `/etc/lynx/CRITICAL`, exits.
+/// If still unhealthy → restores `.prev`, writes `/etc/glyndor/helmly/CRITICAL`, exits.
 pub fn spawn_startup_health_guard() {
-    const CRITICAL_FILE: &str = "/etc/lynx/CRITICAL";
+    const CRITICAL_FILE: &str = "/etc/glyndor/helmly/CRITICAL";
 
     tokio::spawn(async move {
         let client = match reqwest::Client::builder()
@@ -361,7 +361,7 @@ pub fn spawn_startup_health_guard() {
         let ts = chrono::Utc::now().to_rfc3339();
         let _ = std::fs::write(
             CRITICAL_FILE,
-            format!("timestamp={ts}\ncomponent=lynx-dashboard-backend\nreason={reason}\n"),
+            format!("timestamp={ts}\ncomponent=helmly-dashboard-backend\nreason={reason}\n"),
         );
 
         tracing::error!(reason, "critical state — exiting");

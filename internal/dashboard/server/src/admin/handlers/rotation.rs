@@ -259,7 +259,7 @@ async fn rotate_agent_certs(state: &AppState) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Rotate `lynx_dashboard_app` PostgreSQL password.
+/// Rotate `helmly_dashboard_app` PostgreSQL password.
 ///
 /// Uses the current pool connection (still authenticated) to issue ALTER USER,
 /// then replaces the Podman secret so the new password survives a backend restart.
@@ -276,7 +276,7 @@ pub async fn rotate_pg_app_password(state: &AppState) -> Result<(), AppError> {
     // Dollar-quoting ($$...$$) avoids any quote-based injection.
     // new_pass is hex [0-9a-f] so "$$" can never appear inside it.
     sqlx::query(&format!(
-        "ALTER USER lynx_dashboard_app PASSWORD $${}$$",
+        "ALTER USER helmly_dashboard_app PASSWORD $${}$$",
         *new_pass
     ))
     .execute(&state.db)
@@ -293,7 +293,7 @@ pub async fn rotate_pg_app_password(state: &AppState) -> Result<(), AppError> {
 
     let mut pg_ok = false;
     if let Err(e) =
-        crate::podman::secret_replace("lynx-dashboard-pg-pass", new_pass.as_bytes()).await
+        crate::podman::secret_replace("helmly-dashboard-pg-pass", new_pass.as_bytes()).await
     {
         tracing::warn!("podman secret update for pg-pass failed: {e}");
     } else {
@@ -301,7 +301,7 @@ pub async fn rotate_pg_app_password(state: &AppState) -> Result<(), AppError> {
     }
 
     if let Err(e) =
-        crate::podman::secret_replace("lynx-dashboard-database-url", new_db_url.as_bytes()).await
+        crate::podman::secret_replace("helmly-dashboard-database-url", new_db_url.as_bytes()).await
     {
         tracing::warn!("podman secret update for database-url failed: {e}");
     } else if pg_ok {
@@ -309,7 +309,7 @@ pub async fn rotate_pg_app_password(state: &AppState) -> Result<(), AppError> {
     }
 
     if let Err(e) = std::fs::write(
-        "/etc/lynx/secrets/lynx-dashboard-database-url",
+        "/etc/glyndor/helmly/secrets/helmly-dashboard-database-url",
         new_db_url.as_bytes(),
     ) {
         tracing::warn!("host file write for database-url failed: {e}");
@@ -350,7 +350,7 @@ pub async fn rotate_redis_password(state: &AppState) -> Result<(), AppError> {
 
     let mut redis_ok = false;
     if let Err(e) =
-        crate::podman::secret_replace("lynx-dashboard-redis-pass", new_pass.as_bytes()).await
+        crate::podman::secret_replace("helmly-dashboard-redis-pass", new_pass.as_bytes()).await
     {
         tracing::warn!("podman secret update for redis-pass failed: {e}");
     } else {
@@ -358,7 +358,7 @@ pub async fn rotate_redis_password(state: &AppState) -> Result<(), AppError> {
     }
 
     if let Err(e) =
-        crate::podman::secret_replace("lynx-dashboard-redis-url", new_redis_url.as_bytes()).await
+        crate::podman::secret_replace("helmly-dashboard-redis-url", new_redis_url.as_bytes()).await
     {
         tracing::warn!("podman secret update for redis-url failed: {e}");
     } else if redis_ok {
@@ -366,7 +366,7 @@ pub async fn rotate_redis_password(state: &AppState) -> Result<(), AppError> {
     }
 
     if let Err(e) = std::fs::write(
-        "/etc/lynx/secrets/lynx-dashboard-redis-url",
+        "/etc/glyndor/helmly/secrets/helmly-dashboard-redis-url",
         new_redis_url.as_bytes(),
     ) {
         tracing::warn!("host file write for redis-url failed: {e}");

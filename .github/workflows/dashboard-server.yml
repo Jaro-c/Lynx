@@ -23,7 +23,7 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  DATABASE_URL: postgres://lynx_ci:lynx_ci@localhost:5432/lynx_ci
+  DATABASE_URL: postgres://helmly_ci:helmly_ci@localhost:5432/helmly_ci
 
 jobs:
   fmt:
@@ -82,9 +82,9 @@ jobs:
       postgres:
         image: postgres:18-alpine
         env:
-          POSTGRES_USER: lynx_ci
-          POSTGRES_PASSWORD: lynx_ci
-          POSTGRES_DB: lynx_ci
+          POSTGRES_USER: helmly_ci
+          POSTGRES_PASSWORD: helmly_ci
+          POSTGRES_DB: helmly_ci
         ports:
           - 5432:5432
         options: >-
@@ -132,9 +132,9 @@ jobs:
       postgres:
         image: postgres:18-alpine
         env:
-          POSTGRES_USER: lynx_ci
-          POSTGRES_PASSWORD: lynx_ci
-          POSTGRES_DB: lynx_ci
+          POSTGRES_USER: helmly_ci
+          POSTGRES_PASSWORD: helmly_ci
+          POSTGRES_DB: helmly_ci
         ports:
           - 5432:5432
         options: >-
@@ -175,10 +175,10 @@ jobs:
       - name: Run migrations
         run: sqlx migrate run --source dashboard/server/migrations
         env:
-          DATABASE_URL: postgres://lynx_ci:lynx_ci@localhost:5432/lynx_ci
+          DATABASE_URL: postgres://helmly_ci:helmly_ci@localhost:5432/helmly_ci
 
       - name: test
         run: cargo test --package helmly-dashboard-server -- --test-threads=1
         env:
-          DATABASE_URL: postgres://lynx_ci:lynx_ci@localhost:5432/lynx_ci
+          DATABASE_URL: postgres://helmly_ci:helmly_ci@localhost:5432/helmly_ci
           REDIS_URL: redis://localhost:6379

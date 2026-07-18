@@ -376,7 +376,7 @@ mod tests {
 
     async fn test_pool() -> sqlx::PgPool {
         let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgresql://lynx:lynx_dev@localhost:5433/lynx_dashboard".to_string()
+            "postgresql://helmly:helmly_dev@localhost:5433/helmly_dashboard".to_string()
         });
         let pool = sqlx::PgPool::connect(&url)
             .await
