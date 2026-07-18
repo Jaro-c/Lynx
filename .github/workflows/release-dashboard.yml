@@ -35,7 +35,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: lynx
+        working-directory: internal
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -51,7 +51,7 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            lynx/target
+            internal/target
           key: rust-${{ github.job }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: rust-${{ github.job }}-${{ runner.os }}-
 
@@ -64,7 +64,7 @@ jobs:
         run: sqlx migrate run --source dashboard/server/migrations
 
       - name: Verify sqlx cache is up-to-date
-        working-directory: lynx/dashboard/server
+        working-directory: internal/dashboard/server
         env:
           DATABASE_URL: postgres://lynx_ci:lynx_ci@localhost:5432/lynx_ci
         run: cargo sqlx prepare --check
@@ -99,7 +99,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: lynx
+        working-directory: internal
 
     env:
       CARGO_TERM_COLOR: always
@@ -121,7 +121,7 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            lynx/target
+            internal/target
           key: rust-${{ github.job }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: rust-${{ github.job }}-${{ runner.os }}-
 
@@ -152,7 +152,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: lynx/dashboard/ui
+        working-directory: internal/dashboard/ui
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -195,7 +195,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: lynx
+        working-directory: internal
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -214,7 +214,7 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            lynx/target
+            internal/target
           key: rust-${{ github.job }}-${{ matrix.arch }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: rust-${{ github.job }}-${{ matrix.arch }}-${{ runner.os }}-
 
@@ -253,7 +253,7 @@ jobs:
           GLYNDOR_RELEASE_ED25519_KEY: ${{ secrets.GLYNDOR_RELEASE_ED25519_KEY }}
         run: |
           pip install --quiet cryptography
-          BINARY="lynx/target/${{ matrix.rust-target }}/release/lynx-dashboard-server"
+          BINARY="internal/target/${{ matrix.rust-target }}/release/lynx-dashboard-server"
           ARTIFACT="lynx-dashboard-backend-linux-${{ matrix.arch }}"
           cp "$BINARY" "$ARTIFACT"
           python3 .github/scripts/sign.py "$GLYNDOR_RELEASE_ED25519_KEY" "$ARTIFACT"
@@ -266,23 +266,23 @@ jobs:
           echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
 
       - name: Install frontend deps
-        working-directory: lynx/dashboard/ui
+        working-directory: internal/dashboard/ui
         run: bun install --frozen-lockfile
 
       - name: Build Next.js (standalone)
-        working-directory: lynx/dashboard/ui
+        working-directory: internal/dashboard/ui
         run: bun run build
         env:
           NEXT_TELEMETRY_DISABLED: "1"
 
       - name: Copy static assets into standalone
-        working-directory: lynx/dashboard/ui
+        working-directory: internal/dashboard/ui
         run: |
           cp -r .next/static .next/standalone/.next/static
           cp -r public .next/standalone/public
 
       - name: Patch server.js for portable __dirname
-        working-directory: lynx/dashboard/ui
+        working-directory: internal/dashboard/ui
         run: |
           # bun --compile embeds the compile-time __dirname (CI path) into the binary.
           # At runtime on the deployment server that path does not exist, causing chdir to fail.
@@ -300,7 +300,7 @@ jobs:
           "
 
       - name: Compile standalone binary
-        working-directory: lynx/dashboard/ui
+        working-directory: internal/dashboard/ui
         run: |
           # --packages=external + --compile-autoload-package-json: packages are resolved from the
           # filesystem at runtime. The binary must be deployed alongside the standalone directory
@@ -314,7 +314,7 @@ jobs:
             --outfile "lynx-dashboard-frontend-linux-${{ matrix.arch }}"
 
       - name: Bundle static assets
-        working-directory: lynx/dashboard/ui
+        working-directory: internal/dashboard/ui
         run: |
           # Full standalone: node_modules/ + .next/ (server chunks + static + manifests) + public/
           # Binary must be extracted into this same directory at deployment time.
@@ -327,8 +327,8 @@ jobs:
         env:
           GLYNDOR_RELEASE_ED25519_KEY: ${{ secrets.GLYNDOR_RELEASE_ED25519_KEY }}
         run: |
-          cp "lynx/dashboard/ui/lynx-dashboard-frontend-linux-${{ matrix.arch }}" .
-          cp "lynx/dashboard/ui/lynx-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz" .
+          cp "internal/dashboard/ui/lynx-dashboard-frontend-linux-${{ matrix.arch }}" .
+          cp "internal/dashboard/ui/lynx-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz" .
           BIN="lynx-dashboard-frontend-linux-${{ matrix.arch }}"
           ASSETS="lynx-dashboard-frontend-assets-linux-${{ matrix.arch }}.tar.gz"
           python3 .github/scripts/sign.py "$GLYNDOR_RELEASE_ED25519_KEY" "$BIN"

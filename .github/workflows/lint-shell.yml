@@ -31,8 +31,8 @@ jobs:
             scripts/remove-firewall.sh \
             scripts/install-podman.sh \
             scripts/install-nftables.sh \
-            lynx/dashboard/setup-dashboard.sh \
-            lynx/dashboard/update-dashboard.sh
+            internal/dashboard/setup-dashboard.sh \
+            internal/dashboard/update-dashboard.sh
           do
             if bash -n "$f"; then
               echo "OK  $f"

@@ -99,7 +99,7 @@ case "$OPTION" in
         fi
 
         if [[ "$OPTION" == "1" ]]; then
-            exec "$SCRIPT_DIR/lynx/dashboard/setup-dashboard.sh"
+            exec "$SCRIPT_DIR/internal/dashboard/setup-dashboard.sh"
         else
             # The agent lives in its own repository since the extraction —
             # fetch its installer and hand over to it.

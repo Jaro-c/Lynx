@@ -2,7 +2,7 @@
 dev/
 
 # Rust build artifacts
-lynx/target/
+internal/target/
 target/
 *.rs.bk
 

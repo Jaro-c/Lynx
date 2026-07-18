@@ -148,18 +148,18 @@ Repo-specific setup:
 **Dashboard backend (Rust):**
 
 ```bash
-cd lynx
+cd internal
 SQLX_OFFLINE=true cargo build -p lynx-dashboard-server
 SQLX_OFFLINE=true cargo test -p lynx-dashboard-server
 ```
 
 `sqlx` compile-time checks use the committed `.sqlx` cache. To run against a
-real database, see `lynx/dashboard/server/.env` and start PostgreSQL locally.
+real database, see `internal/dashboard/server/.env` and start PostgreSQL locally.
 
 **Dashboard frontend (Next.js):**
 
 ```bash
-cd lynx/dashboard/ui
+cd internal/dashboard/ui
 bun install
 bun dev
 ```
