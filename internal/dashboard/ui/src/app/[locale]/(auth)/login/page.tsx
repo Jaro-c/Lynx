@@ -6,11 +6,11 @@ import { BACKEND_URL } from "@/lib/api";
 async function fetchCompanyName(): Promise<string> {
 	try {
 		const res = await fetch(`${BACKEND_URL}/branding`, { next: { revalidate: 60 } });
-		if (!res.ok) return "Lynx";
+		if (!res.ok) return "Helmly";
 		const data = (await res.json()) as { company_name?: string };
-		return data.company_name ?? "Lynx";
+		return data.company_name ?? "Helmly";
 	} catch {
-		return "Lynx";
+		return "Helmly";
 	}
 }
 
@@ -53,7 +53,7 @@ export default async function LoginPage({ params }: { params: Promise<{ locale: 
 					rel="noopener noreferrer"
 					target="_blank"
 				>
-					lynx
+					helmly
 				</a>
 			</footer>
 		</div>

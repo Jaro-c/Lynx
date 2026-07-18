@@ -14,7 +14,7 @@ pub async fn get_branding(State(state): State<AppState>) -> Result<impl IntoResp
     .fetch_optional(&state.db)
     .await?
     .unwrap_or_else(|| BrandingRow {
-        company_name: "Lynx".into(),
+        company_name: "Helmly".into(),
         logo_url: None,
         primary_color: "#0f172a".into(),
         secondary_color: "#38bdf8".into(),
@@ -75,7 +75,7 @@ pub async fn update_branding(
         r#"
         INSERT INTO white_label (id, company_name, logo_url, primary_color, secondary_color, accent_color, updated_at)
         VALUES (1,
-            COALESCE($1, 'Lynx'),
+            COALESCE($1, 'Helmly'),
             $2,
             COALESCE($3, '#0f172a'),
             COALESCE($4, '#38bdf8'),

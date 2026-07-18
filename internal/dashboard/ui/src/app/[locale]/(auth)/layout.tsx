@@ -17,10 +17,10 @@ export default async function AuthLayout({
 				<div />
 				<div className="flex flex-col items-center gap-5">
 					<div className="relative size-[100px]">
-						<Image src="/logo.webp" alt="Lynx" fill className="object-contain" priority />
+						<Image src="/logo.webp" alt="Helmly" fill className="object-contain" priority />
 					</div>
 					<div className="text-center">
-						<p className="text-2xl font-bold tracking-tight text-white">Lynx</p>
+						<p className="text-2xl font-bold tracking-tight text-white">Helmly</p>
 						<p className="mt-2 max-w-[200px] text-sm leading-relaxed text-slate-400">
 							Distributed infrastructure orchestration
 						</p>
@@ -43,7 +43,7 @@ export default async function AuthLayout({
 						rel="noopener noreferrer"
 						target="_blank"
 					>
-						lynx
+						helmly
 					</a>
 				</footer>
 			</aside>

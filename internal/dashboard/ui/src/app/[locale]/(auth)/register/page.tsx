@@ -12,8 +12,8 @@ export default async function RegisterPage({ params }: { params: Promise<{ local
 	return (
 		<div className="w-full max-w-sm">
 			<div className="mb-8 flex flex-col items-center gap-3 lg:hidden">
-				<Image src="/logo.webp" alt="Lynx" width={56} height={56} priority />
-				<p className="text-sm font-semibold">Lynx</p>
+				<Image src="/logo.webp" alt="Helmly" width={56} height={56} priority />
+				<p className="text-sm font-semibold">Helmly</p>
 			</div>
 
 			<div className="mb-7">
@@ -40,7 +40,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ local
 					rel="noopener noreferrer"
 					target="_blank"
 				>
-					lynx
+					helmly
 				</a>
 			</footer>
 		</div>

@@ -13,7 +13,7 @@ interface Branding {
 
 const DEFAULTS: Branding = {
 	accent_color: "#6366f1",
-	company_name: "Lynx",
+	company_name: "Helmly",
 	logo_url: null,
 	primary_color: "#0f172a",
 	secondary_color: "#38bdf8",

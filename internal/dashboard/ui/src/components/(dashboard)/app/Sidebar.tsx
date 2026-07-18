@@ -118,7 +118,7 @@ export function Sidebar({ locale, companyName, logoUrl, isAdmin }: Props) {
 						rel="noopener noreferrer"
 						target="_blank"
 					>
-						lynx
+						helmly
 					</a>
 				</p>
 			</div>

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const RESERVED = ["admin", "root", "system", "lynx", "support", "api", "null", "undefined"];
+const RESERVED = ["admin", "root", "system", "helmly", "support", "api", "null", "undefined"];
 
 export const registerSchema = z
 	.object({
