@@ -34,7 +34,12 @@ pub fn build_router(state: AppState) -> Router {
 
     let auth_layer = middleware::from_fn_with_state(state.clone(), auth::middleware::require_auth);
 
-    let agents_router = agents::router::router().route_layer(auth_layer.clone());
+    let agents_router = agents::router::router()
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth::middleware::require_vps_access,
+        ))
+        .route_layer(auth_layer.clone());
     let orgs_router = organizations::router::router().route_layer(auth_layer.clone());
     let admin_router = admin::router::router(state.clone()).route_layer(auth_layer.clone());
     let domain_router = domain::router::router().route_layer(auth_layer.clone());

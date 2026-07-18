@@ -126,6 +126,22 @@ pub async fn require_admin(
     Ok(next.run(req).await)
 }
 
+/// Middleware: requires the user to hold at least some `vps:*` (or `*:*`) permission.
+/// Defense-in-depth floor for the whole /agents user router; handlers still derive
+/// the precise level. Must run AFTER `require_auth` (needs `Extension<AuthUser>`).
+pub async fn require_vps_access(
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    req: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    match crate::auth::perms::user_vps_level(&state.db, user.user_id).await {
+        Ok(Some(_)) => Ok(next.run(req).await),
+        Ok(None) => Err(AppError::Forbidden),
+        Err(e) => Err(AppError::Internal(anyhow::Error::from(e))),
+    }
+}
+
 fn extract_bearer(req: &Request) -> Option<String> {
     // Primary: Authorization: Bearer <token>
     if let Some(bearer) = req
