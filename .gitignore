@@ -34,3 +34,6 @@ target/
 .continue/
 .playwright-mcp/
 **/*-mcp/
+AGENTS.md
+CLAUDE.md
+GEMINI.md
