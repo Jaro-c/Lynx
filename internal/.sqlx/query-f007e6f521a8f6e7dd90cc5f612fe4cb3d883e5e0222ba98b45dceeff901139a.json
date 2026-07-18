@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.key AS \"key!\" FROM user_roles ur\n           JOIN role_permissions rp ON rp.role_id = ur.role_id\n           JOIN permissions p ON p.id = rp.permission_id\n           WHERE ur.user_id = $1\n             AND p.key IN ('vps:read','vps:create','vps:edit','vps:delete','vps:*','*:*')",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "key!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f007e6f521a8f6e7dd90cc5f612fe4cb3d883e5e0222ba98b45dceeff901139a"
+}
