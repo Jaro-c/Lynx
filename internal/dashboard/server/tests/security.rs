@@ -373,3 +373,81 @@ async fn org_delete_by_non_owner_returns_404_not_403() {
         res.status_code()
     );
 }
+
+// ---------------------------------------------------------------------------
+// Agent command authorization — low-privilege users cannot command agents
+// (§security.md — permission/user_id are derived from the session, never
+// trusted from the request body; the route-level vps floor rejects before
+// any handler runs)
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn low_priv_user_cannot_send_command() {
+    let server = helpers::test_server().await;
+    let _admin = register_and_login(&server).await; // consumes bootstrap → admin
+    let (token, ip) = register_and_login(&server).await; // normal user, no vps:*
+
+    let fake_agent = uuid::Uuid::now_v7();
+    // Smuggle permission:"admin" + a forged user_id in the body — both must be powerless.
+    let res = server
+        .post(&format!("/agents/{fake_agent}/cmd"))
+        .add_header("x-real-ip", &ip)
+        .add_header("authorization", format!("Bearer {token}"))
+        .json(&json!({
+            "type": "container.start",
+            "permission": "admin",
+            "user_id": uuid::Uuid::now_v7(),
+            "payload": {}
+        }))
+        .await;
+
+    assert_eq!(
+        res.status_code().as_u16(),
+        403,
+        "a user with no vps permission must be denied /cmd regardless of body-supplied permission; got {}",
+        res.status_code()
+    );
+}
+
+#[tokio::test]
+async fn low_priv_user_cannot_reboot_agent() {
+    let server = helpers::test_server().await;
+    let _admin = register_and_login(&server).await;
+    let (token, ip) = register_and_login(&server).await;
+
+    let fake_agent = uuid::Uuid::now_v7();
+    let res = server
+        .post(&format!("/agents/{fake_agent}/reboot"))
+        .add_header("x-real-ip", &ip)
+        .add_header("authorization", format!("Bearer {token}"))
+        .await;
+
+    assert_eq!(
+        res.status_code().as_u16(),
+        403,
+        "no-vps user must be denied /reboot; got {}",
+        res.status_code()
+    );
+}
+
+#[tokio::test]
+async fn low_priv_user_cannot_resolve_nftables() {
+    let server = helpers::test_server().await;
+    let _admin = register_and_login(&server).await;
+    let (token, ip) = register_and_login(&server).await;
+
+    let fake_agent = uuid::Uuid::now_v7();
+    let res = server
+        .post(&format!("/agents/{fake_agent}/nftables-resolve"))
+        .add_header("x-real-ip", &ip)
+        .add_header("authorization", format!("Bearer {token}"))
+        .json(&json!({ "action": "restore" }))
+        .await;
+
+    assert_eq!(
+        res.status_code().as_u16(),
+        403,
+        "no-vps user must be denied /nftables-resolve; got {}",
+        res.status_code()
+    );
+}

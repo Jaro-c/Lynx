@@ -10,6 +10,15 @@ use axum::{
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+#[derive(serde::Deserialize)]
+pub struct SendCommandRequest {
+    /// Command forwarded to the agent, e.g. {"type":"container.start", ...}.
+    #[serde(rename = "type")]
+    pub cmd_type: String,
+    #[serde(default)]
+    pub payload: serde_json::Value,
+}
+
 pub async fn relay_heartbeat(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -67,8 +76,9 @@ pub async fn relay_heartbeat(
 
 pub async fn send_command(
     State(state): State<AppState>,
+    Extension(user): Extension<AuthUser>,
     Path(id): Path<Uuid>,
-    Json(payload): Json<Value>,
+    Json(req): Json<SendCommandRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let agent = sqlx::query!(
         "SELECT wg_ip, api_port, status FROM agents WHERE id = $1",
@@ -82,19 +92,12 @@ pub async fn send_command(
         return Err(AppError::AgentUnavailable);
     }
 
-    let cmd_user_id = payload
-        .get("user_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or(AppError::BadRequest("user_id required in command"))?;
-
-    let permission = payload
-        .get("permission")
-        .and_then(|v| v.as_str())
-        .unwrap_or("read")
-        .to_string();
-
-    let signed = sign_command(&state.config, id, cmd_user_id, &permission, &payload)?;
+    let level = crate::auth::perms::user_vps_level(&state.db, user.user_id)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::Error::from(e)))?
+        .ok_or(AppError::Forbidden)?;
+    let command = serde_json::json!({ "type": req.cmd_type, "payload": req.payload });
+    let signed = sign_command(&state.config, id, user.user_id, level.as_str(), &command)?;
 
     // Try WS first if agent has active connection.
     let signed_val = serde_json::to_value(&signed).unwrap_or(serde_json::json!({}));
@@ -147,6 +150,14 @@ pub async fn reboot_agent(
 
     if agent.status == "lockdown" || agent.status == "offline" {
         return Err(AppError::AgentUnavailable);
+    }
+
+    let level = crate::auth::perms::user_vps_level(&state.db, user.user_id)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::Error::from(e)))?
+        .ok_or(AppError::Forbidden)?;
+    if level < crate::auth::perms::CmdLevel::Write {
+        return Err(AppError::Forbidden);
     }
 
     let command = json!({ "type": "vps.reboot" });
