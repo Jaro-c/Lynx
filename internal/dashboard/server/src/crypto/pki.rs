@@ -117,10 +117,10 @@ pub fn generate_x509_ca() -> Result<(Vec<u8>, Zeroizing<Vec<u8>>)> {
     params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
     params
         .distinguished_name
-        .push(DnType::CommonName, "Lynx Internal CA");
+        .push(DnType::CommonName, "Helmly Internal CA");
     params
         .distinguished_name
-        .push(DnType::OrganizationName, "Lynx");
+        .push(DnType::OrganizationName, "Helmly");
 
     let cert = params.self_signed(&key).context("self-sign CA cert")?;
     let cert_der = cert.der().to_vec();
@@ -148,7 +148,7 @@ pub fn issue_x509_agent_cert(
     let mut params = CertificateParams::new(vec![]).context("create agent cert params")?;
     params
         .distinguished_name
-        .push(DnType::CommonName, format!("lynx-agent-{agent_id}"));
+        .push(DnType::CommonName, format!("helmly-agent-{agent_id}"));
     params.extended_key_usages = vec![
         ExtendedKeyUsagePurpose::ServerAuth,
         ExtendedKeyUsagePurpose::ClientAuth,
@@ -185,7 +185,7 @@ pub fn issue_x509_dashboard_client_cert(
         CertificateParams::new(vec![]).context("create dashboard client cert params")?;
     params
         .distinguished_name
-        .push(DnType::CommonName, "lynx-dashboard");
+        .push(DnType::CommonName, "helmly-dashboard");
     params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ClientAuth];
 
     let cert = params

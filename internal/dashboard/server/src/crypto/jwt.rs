@@ -43,9 +43,9 @@ pub fn issue_access_token(
     let exp = now + 900;
 
     let payload = serde_json::json!({
-        "iss": "lynx-dashboard",
+        "iss": "helmly-dashboard",
         "sub": user_id.to_string(),
-        "aud": "lynx-dashboard",
+        "aud": "helmly-dashboard",
         "exp": exp,
         "nbf": now,
         "iat": now,
@@ -117,10 +117,10 @@ pub fn verify_access_token(keys: &JwtKeys, token: &str) -> Result<AccessClaims> 
 }
 
 fn validate_claims(c: &serde_json::Value) -> Result<()> {
-    if c["iss"].as_str() != Some("lynx-dashboard") {
+    if c["iss"].as_str() != Some("helmly-dashboard") {
         anyhow::bail!("invalid issuer");
     }
-    if c["aud"].as_str() != Some("lynx-dashboard") {
+    if c["aud"].as_str() != Some("helmly-dashboard") {
         anyhow::bail!("invalid audience");
     }
     let now = unix_now();

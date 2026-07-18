@@ -51,7 +51,7 @@ enum Command {
     /// Issue a self-signed P-256 ECDSA certificate (replaces `openssl req -x509
     /// -newkey ec`). Writes PEM cert and key to the given paths.
     CertSelfSigned {
-        /// Subject common name (e.g. `lynx-dashboard`).
+        /// Subject common name (e.g. `helmly-dashboard`).
         #[arg(long)]
         cn: String,
         /// Validity period in days.
