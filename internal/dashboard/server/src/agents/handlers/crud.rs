@@ -1,11 +1,12 @@
 use super::super::{wg, Agent, AgentSummary, RegisterAgentRequest, RegisterAgentResponse};
 use crate::{
+    auth::middleware::AuthUser,
     crypto::{hash::sha256_hex, pki},
     error::AppError,
     state::AppState,
 };
 use axum::{
-    extract::{Path, State},
+    extract::{Extension, Path, State},
     response::IntoResponse,
     Json,
 };
@@ -40,8 +41,17 @@ pub async fn get_agent(
 
 pub async fn register_agent(
     State(state): State<AppState>,
+    Extension(user): Extension<AuthUser>,
     Json(req): Json<RegisterAgentRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    let level = crate::auth::perms::user_vps_level(&state.db, user.user_id)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::Error::from(e)))?
+        .ok_or(AppError::Forbidden)?;
+    if level < crate::auth::perms::CmdLevel::Write {
+        return Err(AppError::Forbidden);
+    }
+
     // Reserve IP first (no FK yet — agent row doesn't exist), then insert agent,
     // then claim the IP (FK satisfied after insert).
     let wg_ip = wg::reserve_ip(&state.db).await?;
@@ -147,8 +157,17 @@ pub async fn register_agent(
 
 pub async fn remove_agent(
     State(state): State<AppState>,
+    Extension(user): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
+    let level = crate::auth::perms::user_vps_level(&state.db, user.user_id)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::Error::from(e)))?
+        .ok_or(AppError::Forbidden)?;
+    if level < crate::auth::perms::CmdLevel::Write {
+        return Err(AppError::Forbidden);
+    }
+
     let agent = sqlx::query!("SELECT wg_pubkey FROM agents WHERE id = $1", id)
         .fetch_optional(&state.db)
         .await?

@@ -75,6 +75,14 @@ pub async fn nftables_resolve(
         return Err(AppError::AgentUnavailable);
     }
 
+    let level = crate::auth::perms::user_vps_level(&state.db, user.user_id)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::Error::from(e)))?
+        .ok_or(AppError::Forbidden)?;
+    if level < crate::auth::perms::CmdLevel::Write {
+        return Err(AppError::Forbidden);
+    }
+
     let cmd_type = format!("nftables.{}", req.action);
     let command = json!({ "type": cmd_type });
 
