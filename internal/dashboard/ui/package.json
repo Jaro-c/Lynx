@@ -44,6 +44,11 @@
 		"vitest": "4.1.7"
 	},
 	"name": "helmly-dashboard-ui",
+	"overrides": {
+		"hono": "4.12.30",
+		"undici": "^7.28.0",
+		"vite": "8.1.5"
+	},
 	"private": true,
 	"scripts": {
 		"audit": "bun audit",
