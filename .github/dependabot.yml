@@ -6,18 +6,20 @@ updates:
     schedule:
       interval: "daily"
     labels:
-      - "dependencies"
-      - "ci"
+      - "type:deps"
+      - "type:ci"
     open-pull-requests-limit: 10
     target-branch: "develop"
 
+  # These paths follow develop, not main: the updates target develop, so that
+  # is the tree Dependabot resolves them against. The crate moved from /lynx to
+  # /internal in the rename, and the old path silently matched nothing.
   - package-ecosystem: "cargo"
     directory: "/internal"
     schedule:
       interval: "daily"
     labels:
-      - "dependencies"
-      - "rust"
+      - "type:deps"
     open-pull-requests-limit: 10
     target-branch: "develop"
 
@@ -26,8 +28,7 @@ updates:
     schedule:
       interval: "daily"
     labels:
-      - "dependencies"
-      - "dashboard"
+      - "type:deps"
     open-pull-requests-limit: 10
     target-branch: "develop"
     groups:
