@@ -205,4 +205,4 @@ Changes in these areas require local VMs — note in your PR which scenarios you
 
 ## License
 
-[Apache-2.0](LICENSE) — © 2026 Glyndor.
+[MIT](LICENSE) — © 2026 Glyndor.
