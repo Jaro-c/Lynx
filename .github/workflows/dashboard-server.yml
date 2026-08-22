@@ -1,3 +1,13 @@
+# The Rust toolchain is pinned to 1.97 across the four jobs that install
+# it (fmt, audit, check, test). Tracking `stable` upgrades the toolchain the
+# day upstream ships, and every open PR goes red on a change nobody made —
+# Rust 1.97.0 landed on 2026-07-07, widened a clippy lint, and turned every
+# open PR in podup red until the lint was fixed. Keep this in step with
+# `Glyndor/.github`'s `rust-ci.yml` `toolchain` input default (1.97 at
+# v1.17.0); bump this pin by hand when the next .github release ships a
+# toolchain bump. helmly does not consume that reusable today, so the
+# reusable's Dependabot-driven bump does not reach this file.
+
 name: dashboard-server
 
 on:
@@ -37,8 +47,8 @@ jobs:
 
       - name: Install toolchain
         run: |
-          rustup toolchain install stable --profile minimal --component rustfmt
-          rustup default stable
+          rustup toolchain install 1.97 --profile minimal --component rustfmt
+          rustup default 1.97
 
       - name: fmt
         run: cargo fmt --package helmly-dashboard-server -- --check
@@ -63,8 +73,8 @@ jobs:
 
       - name: Install toolchain
         run: |
-          rustup toolchain install stable --profile minimal
-          rustup default stable
+          rustup toolchain install 1.97 --profile minimal
+          rustup default 1.97
 
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
@@ -97,8 +107,8 @@ jobs:
 
       - name: Install toolchain
         run: |
-          rustup toolchain install stable --profile minimal --component clippy
-          rustup default stable
+          rustup toolchain install 1.97 --profile minimal --component clippy
+          rustup default 1.97
 
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -156,8 +166,8 @@ jobs:
 
       - name: Install toolchain
         run: |
-          rustup toolchain install stable --profile minimal
-          rustup default stable
+          rustup toolchain install 1.97 --profile minimal
+          rustup default 1.97
 
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
