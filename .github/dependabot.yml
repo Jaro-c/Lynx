@@ -1,13 +1,24 @@
 version: 2
 
+# Labels come from the org taxonomy in ai-context standards/workflow:
+# `type:` for what the change is, `area:` for where it lands. Dependabot
+# creates any label it names that does not exist yet, so a config naming
+# something outside the taxonomy does not just mis-label a pull request -
+# it manufactures the label and keeps it alive. This repository was the
+# only one still doing that (`dependencies`, `ci`, `rust`, `dashboard`),
+# which is why cleaning up the labels had to start here.
+#
+# The ecosystem distinction the old labels carried is kept, expressed in
+# `area:` where it belongs, rather than in a parallel vocabulary.
+
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "daily"
     labels:
-      - "dependencies"
-      - "ci"
+      - "type:deps"
+      - "type:ci"
     open-pull-requests-limit: 10
     target-branch: "develop"
 
@@ -16,8 +27,8 @@ updates:
     schedule:
       interval: "daily"
     labels:
-      - "dependencies"
-      - "rust"
+      - "type:deps"
+      - "area:core"
     open-pull-requests-limit: 10
     target-branch: "develop"
 
@@ -26,8 +37,8 @@ updates:
     schedule:
       interval: "daily"
     labels:
-      - "dependencies"
-      - "dashboard"
+      - "type:deps"
+      - "area:dashboard"
     open-pull-requests-limit: 10
     target-branch: "develop"
     groups:
