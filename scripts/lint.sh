@@ -2,7 +2,7 @@
 # =============================================================================
 # lint.sh
 # =============================================================================
-# Description: Runs shellcheck static analysis on all Lynx shell scripts.
+# Description: Runs shellcheck static analysis on all Helmly shell scripts.
 #              Reports errors, warnings and style issues without executing them.
 #
 # Usage:
@@ -42,14 +42,14 @@ SCRIPTS=(
     "$SCRIPT_DIR/remove-firewall.sh"
     "$SCRIPT_DIR/install-podman.sh"
     "$SCRIPT_DIR/install-nftables.sh"
-    "$ROOT_DIR/lynx/dashboard/setup-dashboard.sh"
-    "$ROOT_DIR/lynx/dashboard/update-dashboard.sh"
+    "$ROOT_DIR/internal/dashboard/setup-dashboard.sh"
+    "$ROOT_DIR/internal/dashboard/update-dashboard.sh"
 )
 
 # -----------------------------------------------------------------------------
 # Run shellcheck
 # -----------------------------------------------------------------------------
-echo -e "${BOLD}${CYAN}Lynx Shell Linter${RESET}\n"
+echo -e "${BOLD}${CYAN}Helmly Shell Linter${RESET}\n"
 
 ERRORS=0
 

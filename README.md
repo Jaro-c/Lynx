@@ -1,33 +1,14 @@
-<div align="center">
-  <img src="lynx/dashboard/ui/public/logo.webp" alt="Lynx" width="140" /><br /><br />
+# Helmly
 
-  # Lynx
+Self-hosted VPS and container hosting panel: containers, firewall and a
+WireGuard VPN, managed from one dashboard across any number of servers. One
+binary per VPS, no Docker daemon required.
 
-  **Self-hosted VPS & container manager.**<br />
-  Containers · Firewall · VPN — from one dashboard, across any number of servers.
+[![CI — Dashboard](https://github.com/Glyndor/panel/actions/workflows/dashboard-server.yml/badge.svg)](https://github.com/Glyndor/panel/actions/workflows/dashboard-server.yml)
 
-  <br />
+## Features
 
-  [![CI — Dashboard](https://github.com/Glyndor/panel/actions/workflows/dashboard-server.yml/badge.svg)](https://github.com/Glyndor/panel/actions/workflows/dashboard-server.yml)
-  ![Rust](https://img.shields.io/badge/Agent-Rust-orange?logo=rust)
-  ![Next.js](https://img.shields.io/badge/Dashboard-Next.js-black?logo=next.js)
-
-  <br />
-
-  [Install](#-install) · [Architecture](#-architecture) · [vs Alternatives](#-vs-alternatives) · [Security](#-security)
-
-</div>
-
----
-
-> **The cPanel/Plesk/Coolify alternative built for people who care about security.**  
-> One binary per VPS. All traffic encrypted over WireGuard. No SaaS. No cloud lock-in. No Docker daemon.
-
----
-
-## ✨ Features
-
-**📦 Containers** — Podman rootless, per-organization isolation, survive VPS reboots without Lynx running  
+**📦 Containers** — Podman rootless, per-organization isolation, survive VPS reboots without Helmly running  
 **🔥 Firewall** — Full nftables control from the dashboard, three-layer hierarchy, atomic apply, auto-restore on any tampering  
 **🔒 Networking** — All dashboard → agent traffic over WireGuard + mTLS. Cross-VPS scaling via direct agent tunnels — no relay through dashboard  
 **🔑 Encryption** — PostgreSQL AES-256 at rest (pg_tde) + per-user envelope encryption (KEK/DEK)  
@@ -36,7 +17,7 @@
 
 ---
 
-## 🏗 Architecture
+## Architecture
 
 ```
 Dashboard VPS
@@ -56,16 +37,16 @@ Each agent connects to the dashboard over a **1:1 WireGuard tunnel** with its ow
 <br />
 
 ```
-table inet lynx-agent {
-    chain lynx-base    ← Lynx invariants. Never editable. Auto-restored instantly on any change.
-    chain lynx-global  ← Rules pushed to ALL agents simultaneously
-    chain lynx-local   ← Per-VPS rules for this agent only
+table inet helmly-agent {
+    chain helmly-base    ← Helmly invariants. Never editable. Auto-restored instantly on any change.
+    chain helmly-global  ← Rules pushed to ALL agents simultaneously
+    chain helmly-local   ← Per-VPS rules for this agent only
 }
 ```
 
-- **`lynx-base`** — default deny, WireGuard allowlist, inter-org isolation, anti-spoofing
-- **`lynx-global`** — IP blocklists, protocol restrictions — propagated to all agents in parallel; agents offline receive pending rules on reconnect
-- **`lynx-local`** — per-VPS port rules, IP allowlists
+- **`helmly-base`** — default deny, WireGuard allowlist, inter-org isolation, anti-spoofing
+- **`helmly-global`** — IP blocklists, protocol restrictions — propagated to all agents in parallel; agents offline receive pending rules on reconnect
+- **`helmly-local`** — per-VPS port rules, IP allowlists
 
 </details>
 
@@ -76,7 +57,7 @@ table inet lynx-agent {
 ```
 Internet → 80/443
     ↓
-lynx-nginx (Agent-1, entry point)
+helmly-nginx (Agent-1, entry point)
     ├── replica:1  (Agent-1, local Podman network)
     └── WireGuard ──► Agent-2
                           ├── replica:2
@@ -89,7 +70,7 @@ Agent-2 never exposes public ports for the project. All traffic enters through A
 
 ---
 
-## ⚡ Install
+## Install
 
 ### Dashboard
 
@@ -124,23 +105,7 @@ The installer handles everything:
 
 ---
 
-## 🆚 vs Alternatives
-
-| | **Lynx** | Coolify | Dokploy | cPanel / Plesk |
-|---|---|---|---|---|
-| Container runtime | Podman (rootless) | Docker | Docker | varies |
-| Firewall management | ✅ Full nftables | ❌ | ❌ | Partial |
-| VPN between servers | ✅ WireGuard | ❌ | ❌ | ❌ |
-| Encryption at rest | ✅ AES-256 (pg_tde) | ❌ | ❌ | ❌ |
-| Per-user encryption | ✅ KEK/DEK | ❌ | ❌ | ❌ |
-| Signed binary updates | ✅ Ed25519 | ❌ | ❌ | ❌ |
-| Runtime dependencies | None | Docker Engine | Docker Engine | Heavy |
-| Pricing | Free / self-hosted | Free tier + paid | Free / self-hosted | Paid license |
-| SaaS / cloud | Never | Optional | Optional | Optional |
-
----
-
-## 🔐 Security
+## Security
 
 <details>
 <summary><strong>Transport &amp; cryptography</strong></summary>
@@ -174,7 +139,7 @@ the [security architecture](docs/security-architecture.md) for threat modeling.
 
 ---
 
-## 🛠 Development
+## Development
 
 Contribution model, branch flow and code style live in the
 [organization contributing guide](https://github.com/Glyndor/.github/blob/main/CONTRIBUTING.md).
@@ -183,18 +148,18 @@ Repo-specific setup:
 **Dashboard backend (Rust):**
 
 ```bash
-cd lynx
-SQLX_OFFLINE=true cargo build -p lynx-dashboard-server
-SQLX_OFFLINE=true cargo test -p lynx-dashboard-server
+cd internal
+SQLX_OFFLINE=true cargo build -p helmly-dashboard-server
+SQLX_OFFLINE=true cargo test -p helmly-dashboard-server
 ```
 
 `sqlx` compile-time checks use the committed `.sqlx` cache. To run against a
-real database, see `lynx/dashboard/server/.env` and start PostgreSQL locally.
+real database, see `internal/dashboard/server/.env` and start PostgreSQL locally.
 
 **Dashboard frontend (Next.js):**
 
 ```bash
-cd lynx/dashboard/ui
+cd internal/dashboard/ui
 bun install
 bun dev
 ```
@@ -238,11 +203,6 @@ Changes in these areas require local VMs — note in your PR which scenarios you
 
 ---
 
-## 📄 License
+## License
 
-[Apache-2.0](LICENSE) — © 2026 [Glyndor](https://github.com/Glyndor)
-
-<div align="center">
-  <br />
-  <sub>Made with ❤️ by <a href="https://github.com/Jaro-c">Jaroc</a></sub>
-</div>
+[Apache-2.0](LICENSE) — © 2026 Glyndor.

@@ -43,7 +43,7 @@ remove_firewall() {
 
     # Delete all nftables tables created by ufw / iptables-nft (ip/ip6 families).
     # On Ubuntu 24.04+, iptables is iptables-nft — its tables live in nftables.
-    # Delete entirely so only table inet lynx-agent remains after install.
+    # Delete entirely so only table inet helmly-agent remains after install.
     for _nft_table in \
         "ip filter" "ip nat" "ip mangle" "ip raw" "ip security" \
         "ip6 filter" "ip6 nat" "ip6 mangle" "ip6 raw" "ip6 security" \

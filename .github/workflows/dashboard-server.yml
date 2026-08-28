@@ -3,18 +3,8 @@ name: dashboard-server
 on:
   push:
     branches: [main, develop]
-    paths:
-      - "lynx/dashboard/server/**"
-      - "lynx/Cargo.toml"
-      - "lynx/Cargo.lock"
-      - ".github/workflows/dashboard-server.yml"
   pull_request:
     branches: [main, develop]
-    paths:
-      - "lynx/dashboard/server/**"
-      - "lynx/Cargo.toml"
-      - "lynx/Cargo.lock"
-      - ".github/workflows/dashboard-server.yml"
 
 permissions:
   contents: read
@@ -23,68 +13,133 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  DATABASE_URL: postgres://lynx_ci:lynx_ci@localhost:5432/lynx_ci
+  DATABASE_URL: postgres://helmly_ci:helmly_ci@localhost:5432/helmly_ci
 
 jobs:
+  # Always runs so the five required server jobs below always report. On a
+  # change that does not touch the server, every step in those jobs is skipped
+  # via `if:`, so the job still concludes SUCCESS (a required check reported as
+  # SUCCESS is satisfied — unlike a whole job skipped via a job-level `if:`,
+  # which GitHub leaves unsatisfied and blocks the PR). This replaces the
+  # `on.paths` filter that left Format, Audit download URLs, Security audit,
+  # Check & Clippy and Test perpetually unreported on non-server PRs, and
+  # therefore made any such pull request unmergeable into `develop`.
+  #
+  # `dashboard-ui.yml` already carried this shape and this comment. Only this
+  # workflow was left on `on.paths`, so the fix landed for four required checks
+  # and not for these five.
+  changes:
+    name: Detect server changes
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.filter.outputs.server }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - id: filter
+        name: Check whether server files changed
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "pull_request" ]; then
+            range="${BASE_SHA}...${HEAD_SHA}"
+          elif printf '%s' "$BEFORE_SHA" | grep -qE '^0+$'; then
+            echo "New branch (no base commit) — running server jobs."
+            echo "server=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          else
+            range="${BEFORE_SHA}...${AFTER_SHA}"
+          fi
+          echo "Comparing range: ${range}"
+          # The same set the `on.paths` filter used to name, kept here so the
+          # workflow still only does real work when the server is affected.
+          if git diff --name-only "$range" | grep -qE '^(internal/dashboard/server/|internal/Cargo\.(toml|lock)$|\.github/workflows/dashboard-server\.yml$)'; then
+            echo "Server files changed — running server jobs."
+            echo "server=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No server files changed — server job steps skip; jobs still report success."
+            echo "server=false" >> "$GITHUB_OUTPUT"
+          fi
+
   fmt:
     name: Format
+    needs: changes
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: lynx
+        working-directory: internal
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        if: needs.changes.outputs.server == 'true'
 
       - name: Install toolchain
+        if: needs.changes.outputs.server == 'true'
         run: |
           rustup toolchain install stable --profile minimal --component rustfmt
           rustup default stable
 
       - name: fmt
-        run: cargo fmt --package lynx-dashboard-server -- --check
+        if: needs.changes.outputs.server == 'true'
+        run: cargo fmt --package helmly-dashboard-server -- --check
 
   audit-urls:
     name: Audit download URLs
+    needs: changes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        if: needs.changes.outputs.server == 'true'
 
       - name: Check download URLs are from allowed domains
+        if: needs.changes.outputs.server == 'true'
         run: python3 .github/scripts/audit-urls.py
 
   audit:
     name: Security audit
+    needs: changes
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: lynx
+        working-directory: internal
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        if: needs.changes.outputs.server == 'true'
 
       - name: Install toolchain
+        if: needs.changes.outputs.server == 'true'
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
 
       - name: Install cargo-audit
+        if: needs.changes.outputs.server == 'true'
         run: cargo install cargo-audit --locked
 
       - name: audit
+        if: needs.changes.outputs.server == 'true'
         run: cargo audit --ignore RUSTSEC-2023-0071
 
   check:
     name: Check & Clippy
+    needs: changes
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: lynx
+        working-directory: internal
     services:
       postgres:
         image: postgres:18-alpine
         env:
-          POSTGRES_USER: lynx_ci
-          POSTGRES_PASSWORD: lynx_ci
-          POSTGRES_DB: lynx_ci
+          POSTGRES_USER: helmly_ci
+          POSTGRES_PASSWORD: helmly_ci
+          POSTGRES_DB: helmly_ci
         ports:
           - 5432:5432
         options: >-
@@ -94,47 +149,55 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        if: needs.changes.outputs.server == 'true'
 
       - name: Install toolchain
+        if: needs.changes.outputs.server == 'true'
         run: |
           rustup toolchain install stable --profile minimal --component clippy
           rustup default stable
 
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        if: needs.changes.outputs.server == 'true'
         with:
           path: |
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            lynx/target
+            internal/target
           key: rust-${{ github.job }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: rust-${{ github.job }}-${{ runner.os }}-
 
       - name: Install sqlx-cli
+        if: needs.changes.outputs.server == 'true'
         run: cargo install sqlx-cli --no-default-features --features postgres --locked
 
       - name: Run migrations
+        if: needs.changes.outputs.server == 'true'
         run: sqlx migrate run --source dashboard/server/migrations
 
       - name: check
-        run: cargo check --package lynx-dashboard-server
+        if: needs.changes.outputs.server == 'true'
+        run: cargo check --package helmly-dashboard-server
 
       - name: clippy
-        run: cargo clippy --package lynx-dashboard-server -- -D warnings
+        if: needs.changes.outputs.server == 'true'
+        run: cargo clippy --package helmly-dashboard-server -- -D warnings
 
   test:
     name: Test
+    needs: changes
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: lynx
+        working-directory: internal
     services:
       postgres:
         image: postgres:18-alpine
         env:
-          POSTGRES_USER: lynx_ci
-          POSTGRES_PASSWORD: lynx_ci
-          POSTGRES_DB: lynx_ci
+          POSTGRES_USER: helmly_ci
+          POSTGRES_PASSWORD: helmly_ci
+          POSTGRES_DB: helmly_ci
         ports:
           - 5432:5432
         options: >-
@@ -153,32 +216,38 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        if: needs.changes.outputs.server == 'true'
 
       - name: Install toolchain
+        if: needs.changes.outputs.server == 'true'
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
 
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        if: needs.changes.outputs.server == 'true'
         with:
           path: |
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            lynx/target
+            internal/target
           key: rust-${{ github.job }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: rust-${{ github.job }}-${{ runner.os }}-
 
       - name: Install sqlx-cli
+        if: needs.changes.outputs.server == 'true'
         run: cargo install sqlx-cli --no-default-features --features postgres --locked
 
       - name: Run migrations
+        if: needs.changes.outputs.server == 'true'
         run: sqlx migrate run --source dashboard/server/migrations
         env:
-          DATABASE_URL: postgres://lynx_ci:lynx_ci@localhost:5432/lynx_ci
+          DATABASE_URL: postgres://helmly_ci:helmly_ci@localhost:5432/helmly_ci
 
       - name: test
-        run: cargo test --package lynx-dashboard-server -- --test-threads=1
+        if: needs.changes.outputs.server == 'true'
+        run: cargo test --package helmly-dashboard-server -- --test-threads=1
         env:
-          DATABASE_URL: postgres://lynx_ci:lynx_ci@localhost:5432/lynx_ci
+          DATABASE_URL: postgres://helmly_ci:helmly_ci@localhost:5432/helmly_ci
           REDIS_URL: redis://localhost:6379

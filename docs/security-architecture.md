@@ -1,6 +1,6 @@
 # Security Architecture
 
-Key properties of Lynx for threat modeling. The reporting process and response
+Key properties of Helmly for threat modeling. The reporting process and response
 targets are in the
 [organization security policy](https://github.com/Glyndor/panel/security/policy).
 
@@ -15,7 +15,7 @@ targets are in the
   during auto-update. Partial downloads fail verification automatically.
 - **Audit log** — hash-chained, append-only, synced to dashboard PostgreSQL in
   real time. Any tampered entry breaks the chain.
-- **Firewall** — nftables default deny. The `lynx-base` chain is invariant —
+- **Firewall** — nftables default deny. The `helmly-base` chain is invariant —
   auto-restored silently if modified, even by root.
 - **Containers** — rootless Podman under per-org system users. UID 0 inside a
   container maps to an unprivileged UID on the host.
@@ -34,7 +34,7 @@ targets are in the
 
 ## Supported versions
 
-Only the latest release of each component is supported. Lynx auto-updates
+Only the latest release of each component is supported. Helmly auto-updates
 itself — there is no manual rollback. If a critical bug is found, a new
 release is published and deployed automatically.
 

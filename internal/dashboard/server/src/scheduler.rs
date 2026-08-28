@@ -1,0 +1,448 @@
+use crate::{admin::handlers::rotation, crypto::cmd, state::AppState};
+use std::time::Duration;
+use tokio::time::interval;
+use uuid::Uuid;
+
+const DASHBOARD_REPO: &str = "Glyndor/helmly";
+const DASHBOARD_API_RELEASES: &str = "https://api.github.com/repos/Glyndor/helmly/releases";
+const AGENT_REPO: &str = "Glyndor/helmly-agent";
+const AGENT_API_RELEASES: &str = "https://api.github.com/repos/Glyndor/helmly-agent/releases";
+
+const CHECK_INTERVAL_SECS: u64 = 3600;
+const ROTATION_INTERVAL_DAYS: i64 = 90;
+
+/// Top-level scheduler: runs hourly GitHub release check + periodic cert/key rotation.
+pub async fn run(state: AppState) {
+    // Run immediately at startup — don't wait an hour for first check.
+    check_releases(&state).await;
+    check_rotation(&state).await;
+
+    let mut ticker = interval(Duration::from_secs(CHECK_INTERVAL_SECS));
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+    loop {
+        ticker.tick().await;
+        check_releases(&state).await;
+        check_rotation(&state).await;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// GitHub release check
+// ---------------------------------------------------------------------------
+
+async fn check_releases(state: &AppState) {
+    let client = match reqwest::Client::builder()
+        .user_agent("helmly-dashboard/1.0")
+        .timeout(Duration::from_secs(30))
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("scheduler: failed to build HTTP client: {e}");
+            return;
+        }
+    };
+
+    // Agent and dashboard ship from separate repositories since the
+    // extraction — each one gets its own release listing.
+    let latest_agent = fetch_releases(&client, AGENT_API_RELEASES)
+        .await
+        .and_then(|releases| latest_release_version(&releases, "v"));
+
+    let latest_dashboard = fetch_releases(&client, DASHBOARD_API_RELEASES)
+        .await
+        .and_then(|releases| latest_release_version(&releases, "dashboard@"));
+
+    if let Some(ref ver) = latest_agent {
+        tracing::info!(version = %ver, "scheduler: latest agent release detected");
+        *state.latest_agent_version.write().await = Some(ver.clone());
+        dispatch_updates_if_needed(state, ver).await;
+    }
+
+    if let Some(ref ver) = latest_dashboard {
+        let current = std::fs::read_to_string(crate::update::VERSION_FILE)
+            .map(|s| s.trim().to_string())
+            .unwrap_or_else(|_| env!("CARGO_PKG_VERSION").to_string());
+        if ver.as_str() != current {
+            tracing::info!(latest = %ver, current, "scheduler: dashboard update available");
+            trigger_dashboard_update(state, ver).await;
+        }
+    }
+}
+
+/// Fetch the release list of a repository from the GitHub API.
+async fn fetch_releases(client: &reqwest::Client, url: &str) -> Option<Vec<serde_json::Value>> {
+    match client
+        .get(url)
+        .send()
+        .await
+        .and_then(|r| r.error_for_status())
+        .map(|r| r.json())
+    {
+        Ok(f) => match f.await {
+            Ok(v) => Some(v),
+            Err(e) => {
+                tracing::warn!(url, "scheduler: failed to parse GitHub releases: {e}");
+                None
+            }
+        },
+        Err(e) => {
+            tracing::warn!(url, "scheduler: GitHub API request failed: {e}");
+            None
+        }
+    }
+}
+
+/// Highest published (non-draft, non-prerelease) version among tags with the
+/// given prefix, returned without the prefix.
+fn latest_release_version(releases: &[serde_json::Value], tag_prefix: &str) -> Option<String> {
+    releases
+        .iter()
+        .filter(|r| r.get("prerelease").and_then(|v| v.as_bool()) != Some(true))
+        .filter(|r| r.get("draft").and_then(|v| v.as_bool()) != Some(true))
+        .filter_map(|r| r["tag_name"].as_str())
+        .filter_map(|t| t.strip_prefix(tag_prefix))
+        .filter_map(|s| parse_semver(s).map(|v| (s, v)))
+        .max_by_key(|(_, v)| *v)
+        .map(|(s, _)| s.to_string())
+}
+
+/// Parse a semver string into a (major, minor, patch) tuple for ordering.
+fn parse_semver(v: &str) -> Option<(u64, u64, u64)> {
+    let v = v.trim_start_matches('v');
+    let mut parts = v.splitn(3, '.');
+    let major = parts.next()?.parse().ok()?;
+    let minor = parts.next()?.parse().ok()?;
+    let patch = parts
+        .next()
+        .and_then(|p| p.split('-').next())?
+        .parse()
+        .ok()?;
+    Some((major, minor, patch))
+}
+
+async fn dispatch_updates_if_needed(state: &AppState, latest: &str) {
+    let latest_tuple = match parse_semver(latest) {
+        Some(t) => t,
+        None => {
+            tracing::warn!(version = %latest, "scheduler: cannot parse latest agent version — skipping dispatch");
+            return;
+        }
+    };
+
+    let candidates = match sqlx::query!(
+        "SELECT id, wg_ip::text AS wg_ip, api_port, COALESCE(arch, 'x86_64') AS arch, version \
+         FROM agents WHERE status = 'online'",
+    )
+    .fetch_all(&state.db)
+    .await
+    {
+        Ok(rows) => rows,
+        Err(e) => {
+            tracing::warn!("scheduler: failed to query agents: {e}");
+            return;
+        }
+    };
+
+    // Only send update.self to agents running a version strictly older than latest.
+    let outdated: Vec<_> = candidates
+        .into_iter()
+        .filter(|a| {
+            let current = a.version.as_deref().unwrap_or("0.0.0");
+            parse_semver(current).is_none_or(|t| t < latest_tuple)
+        })
+        .collect();
+
+    if outdated.is_empty() {
+        return;
+    }
+
+    tracing::info!(
+        count = outdated.len(),
+        version = %latest,
+        "scheduler: dispatching update.self to outdated agents"
+    );
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .expect("build reqwest client");
+
+    // Use a system user_id sentinel (nil UUID) for scheduler-triggered commands.
+    let system_user_id = Uuid::nil();
+
+    for agent in &outdated {
+        let arch = agent.arch.as_deref().unwrap_or("x86_64");
+        let download_url = format!(
+            "https://github.com/{AGENT_REPO}/releases/download/v{latest}/helmly-agent-linux-{arch}"
+        );
+        let sig_url = format!(
+            "https://github.com/{AGENT_REPO}/releases/download/v{latest}/helmly-agent-linux-{arch}.sig"
+        );
+        let command = serde_json::json!({
+            "type": "update.self",
+            "version": latest,
+            "download_url": download_url,
+            "sig_url": sig_url,
+        });
+
+        let signed =
+            match cmd::sign_command(&state.config, agent.id, system_user_id, "write", &command) {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!(agent_id = %agent.id, "scheduler: sign_command failed: {e}");
+                    continue;
+                }
+            };
+
+        let url = format!("https://{}:{}/cmd", agent.wg_ip, agent.api_port);
+        let result = client
+            .post(&url)
+            .header(
+                "Authorization",
+                format!("Bearer {}", *state.config.internal_token),
+            )
+            .json(&signed)
+            .send()
+            .await;
+
+        let log_id = Uuid::now_v7();
+        let status = match result {
+            Ok(r) if r.status().is_success() => "success",
+            _ => "failed",
+        };
+
+        let _ = sqlx::query!(
+            r#"
+            INSERT INTO update_log (id, triggered_by, version, channel, scope, agent_id, status)
+            VALUES ($1, NULL, $2, 'stable', 'agent', $3, $4)
+            "#,
+            log_id,
+            latest,
+            agent.id,
+            status,
+        )
+        .execute(&state.db)
+        .await;
+
+        tracing::info!(agent_id = %agent.id, status, "scheduler: update.self dispatched");
+    }
+}
+
+async fn trigger_dashboard_update(state: &AppState, version: &str) {
+    let arch = match std::env::consts::ARCH {
+        "aarch64" => "arm64",
+        a => a,
+    };
+    let backend_url = format!(
+        "https://github.com/{DASHBOARD_REPO}/releases/download/dashboard@{version}/helmly-dashboard-backend-linux-{arch}"
+    );
+    let backend_sig = format!("{backend_url}.sig");
+    let frontend_url = format!(
+        "https://github.com/{DASHBOARD_REPO}/releases/download/dashboard@{version}/helmly-dashboard-frontend-linux-{arch}"
+    );
+    let frontend_sig = format!("{frontend_url}.sig");
+    let frontend_assets_url = format!(
+        "https://github.com/{DASHBOARD_REPO}/releases/download/dashboard@{version}/helmly-dashboard-frontend-assets-linux-{arch}.tar.gz"
+    );
+    let frontend_assets_sig = format!("{frontend_assets_url}.sig");
+
+    let log_id = Uuid::now_v7();
+    let _ = sqlx::query!(
+        r#"
+        INSERT INTO update_log (id, triggered_by, version, channel, scope, agent_id, status)
+        VALUES ($1, NULL, $2, 'stable', 'dashboard', NULL, 'pending')
+        "#,
+        log_id,
+        version,
+    )
+    .execute(&state.db)
+    .await;
+
+    tracing::info!(
+        version,
+        arch,
+        backend_url = %backend_url,
+        frontend_url = %frontend_url,
+        "scheduler: dashboard self-update initiated"
+    );
+
+    tokio::spawn(crate::update::perform_dashboard_update(
+        crate::update::DashboardUpdateParams {
+            version: version.to_string(),
+            backend_url,
+            backend_sig_url: backend_sig,
+            frontend_url,
+            frontend_sig_url: frontend_sig,
+            frontend_assets_url,
+            frontend_assets_sig_url: frontend_assets_sig,
+            log_id,
+            db: state.db.clone(),
+        },
+    ));
+}
+
+// ---------------------------------------------------------------------------
+// Scheduled key / cert rotation (every 90 days)
+// ---------------------------------------------------------------------------
+
+/// Returns true if a scheduled rotation should run.
+///
+/// Both 'scheduled' and 'update' entries reset the 90-day clock.  This
+/// prevents a double JWT rotation when an update-triggered rotation and the
+/// 90-day timer both fire in the same scheduler cycle.
+pub(crate) async fn needs_scheduled_rotation(db: &sqlx::PgPool) -> bool {
+    let last = sqlx::query_scalar!(
+        "SELECT MAX(created_at) FROM rotation_log WHERE reason IN ('scheduled', 'update')"
+    )
+    .fetch_one(db)
+    .await
+    .unwrap_or(Some(chrono::Utc::now()));
+
+    match last {
+        // Fresh install: no rotation history. Seed the clock so the 90-day
+        // window starts from today rather than triggering an immediate rotation.
+        None => {
+            let _ = sqlx::query!(
+                "INSERT INTO rotation_log (id, reason, scope) VALUES ($1, 'scheduled', 'all')",
+                uuid::Uuid::now_v7(),
+            )
+            .execute(db)
+            .await;
+            false
+        }
+        Some(ts) => (chrono::Utc::now() - ts).num_days() >= ROTATION_INTERVAL_DAYS,
+    }
+}
+
+async fn check_rotation(state: &AppState) {
+    if !needs_scheduled_rotation(&state.db).await {
+        return;
+    }
+
+    tracing::info!("scheduler: 90-day key rotation triggered");
+
+    // JWT session flush — forces all users to re-login with new tokens.
+    if let Err(e) = rotation::rotate_jwt_sessions(state).await {
+        tracing::warn!("scheduler: JWT session rotation failed: {e}");
+    }
+
+    // WireGuard PSK rotation — coordinated without dropping tunnels.
+    if let Err(e) = rotation::rotate_wireguard_psks(state, Uuid::nil()).await {
+        tracing::warn!("scheduler: WireGuard PSK rotation failed: {e}");
+    }
+
+    // mTLS cert rotation — renews certs expiring within 30 days.
+    if let Err(e) = rotation::rotate_expiring_certs(state, 30).await {
+        tracing::warn!("scheduler: cert rotation failed: {e}");
+    }
+
+    // PostgreSQL app-user password rotation.
+    if let Err(e) = rotation::rotate_pg_app_password(state).await {
+        tracing::warn!("scheduler: PostgreSQL password rotation failed: {e}");
+    }
+
+    // Redis password rotation.
+    if let Err(e) = rotation::rotate_redis_password(state).await {
+        tracing::warn!("scheduler: Redis password rotation failed: {e}");
+    }
+
+    let log_id = Uuid::now_v7();
+    let _ = sqlx::query!(
+        "INSERT INTO rotation_log (id, triggered_by, reason, scope) VALUES ($1, NULL, 'scheduled', 'all')",
+        log_id
+    )
+    .execute(&state.db)
+    .await;
+
+    tracing::info!("scheduler: scheduled rotation complete");
+}
+
+// ---------------------------------------------------------------------------
+// Unit tests for needs_scheduled_rotation
+//
+// These tests run against the shared integration DB (DATABASE_URL).  Only
+// "expect false" cases are tested inline because inserting a recent entry
+// makes needs_scheduled_rotation deterministically false regardless of other
+// concurrent test entries.  "Expect true" cases (empty table, old entries
+// only) require an isolated DB and are covered by the HTTP-level tests in
+// tests/rotation.rs.
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn test_pool() -> sqlx::PgPool {
+        let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgresql://helmly:helmly_dev@localhost:5433/helmly_dashboard".to_string()
+        });
+        let pool = sqlx::PgPool::connect(&url)
+            .await
+            .expect("connect to test DB");
+        sqlx::migrate!("./migrations")
+            .run(&pool)
+            .await
+            .expect("migrate test DB");
+        pool
+    }
+
+    // Recent 'update' entry → needs_scheduled_rotation returns false.
+    // This is the core bug fix: update rotations must suppress the 90-day
+    // scheduled rotation so JWT keys are not rotated twice in one cycle.
+    #[tokio::test]
+    async fn recent_update_suppresses_scheduled_rotation() {
+        let pool = test_pool().await;
+        let id = Uuid::now_v7();
+
+        sqlx::query!(
+            "INSERT INTO rotation_log (id, triggered_by, reason, scope) \
+             VALUES ($1, NULL, 'update', 'all')",
+            id,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let result = needs_scheduled_rotation(&pool).await;
+
+        let _ = sqlx::query!("DELETE FROM rotation_log WHERE id = $1", id)
+            .execute(&pool)
+            .await;
+
+        assert!(
+            !result,
+            "recent 'update' entry must suppress the scheduled rotation (prevents double JWT rotation in same cycle)"
+        );
+    }
+
+    // Recent 'scheduled' entry → needs_scheduled_rotation returns false.
+    // Idempotency: calling the scheduler twice in one 90-day window only
+    // rotates once.
+    #[tokio::test]
+    async fn recent_scheduled_suppresses_next_scheduled() {
+        let pool = test_pool().await;
+        let id = Uuid::now_v7();
+
+        sqlx::query!(
+            "INSERT INTO rotation_log (id, triggered_by, reason, scope) \
+             VALUES ($1, NULL, 'scheduled', 'all')",
+            id,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let result = needs_scheduled_rotation(&pool).await;
+
+        let _ = sqlx::query!("DELETE FROM rotation_log WHERE id = $1", id)
+            .execute(&pool)
+            .await;
+
+        assert!(
+            !result,
+            "recent 'scheduled' entry must suppress the next scheduled rotation (90-day idempotency)"
+        );
+    }
+}

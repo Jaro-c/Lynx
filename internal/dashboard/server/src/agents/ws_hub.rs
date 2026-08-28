@@ -1,0 +1,615 @@
+use super::{handlers::broadcast_event, AuditSyncEntry};
+use crate::{
+    crypto::hash::sha256_hex,
+    error::AppError,
+    state::{AgentWsConn, AppState},
+};
+use axum::{
+    extract::{
+        ws::{Message, WebSocket},
+        Path, Query, State, WebSocketUpgrade,
+    },
+    response::IntoResponse,
+};
+use serde::Deserialize;
+use serde_json::{json, Value};
+use std::{collections::HashMap, sync::Arc, time::Duration};
+use tokio::sync::{broadcast, oneshot, Mutex};
+use uuid::Uuid;
+
+/// Capacity of each per-agent broadcast channel (number of metric frames buffered).
+const METRIC_BROADCAST_CAP: usize = 32;
+
+#[derive(Deserialize)]
+pub struct WsQuery {
+    token: String,
+}
+
+/// WebSocket upgrade endpoint: agents connect here to establish a persistent channel.
+/// Auth: `?token=<sync_token>` verified against `sync_token_hash` in DB.
+pub async fn agent_ws_handler(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Query(q): Query<WsQuery>,
+    ws: WebSocketUpgrade,
+) -> Result<impl IntoResponse, AppError> {
+    let stored_hash = sqlx::query_scalar!("SELECT sync_token_hash FROM agents WHERE id = $1", id)
+        .fetch_optional(&state.db)
+        .await?
+        .flatten()
+        .ok_or(AppError::NotFound)?;
+
+    let provided_hash = sha256_hex(q.token.as_bytes());
+    let ok: bool =
+        subtle::ConstantTimeEq::ct_eq(provided_hash.as_bytes(), stored_hash.as_bytes()).into();
+    if !ok {
+        return Err(AppError::Unauthorized);
+    }
+
+    Ok(ws.on_upgrade(move |socket| handle_socket(state, id, socket)))
+}
+
+async fn handle_socket(state: AppState, agent_id: Uuid, mut socket: WebSocket) {
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
+    let pending: Arc<Mutex<HashMap<Uuid, oneshot::Sender<Value>>>> =
+        Arc::new(Mutex::new(HashMap::new()));
+
+    let conn = Arc::new(AgentWsConn {
+        sender: tx,
+        pending: pending.clone(),
+    });
+
+    // Create broadcast channel for metric fan-out to frontend WS clients.
+    // Wrapped in Arc so cleanup can use ptr_eq to avoid removing a newer session's entry.
+    let metric_tx = Arc::new(broadcast::channel::<Arc<String>>(METRIC_BROADCAST_CAP).0);
+    {
+        let mut map = state.agent_ws_conns.write().await;
+        map.insert(agent_id, conn.clone());
+    }
+    {
+        let mut map = state.agent_metric_tx.write().await;
+        map.insert(agent_id, metric_tx.clone());
+    }
+
+    let _ = sqlx::query!(
+        "UPDATE agents SET status='online', last_heartbeat=NOW() WHERE id=$1",
+        agent_id
+    )
+    .execute(&state.db)
+    .await;
+
+    tracing::info!(agent_id = %agent_id, "agent WS connected");
+
+    // Record connect event + push to browser WS sessions.
+    let event_id = Uuid::now_v7();
+    let _ = sqlx::query!(
+        "INSERT INTO agent_events (id, agent_id, event, detail) VALUES ($1, $2, 'connected', NULL)",
+        event_id,
+        agent_id
+    )
+    .execute(&state.db)
+    .await;
+    broadcast_event(&state, agent_id, "connected", None);
+
+    // Push pending global rule syncs if the agent missed any while offline.
+    push_pending_global_sync(&state, agent_id).await;
+
+    // If this is the local agent reconnecting, reconcile WireGuard peers.
+    // Covers the VPS-reboot case: wg-quick brings up the interface empty and the
+    // backend needs to re-add every DB peer via the local agent.
+    let is_local = sqlx::query_scalar!("SELECT is_local_agent FROM agents WHERE id=$1", agent_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or(false);
+    if is_local {
+        let reconcile_state = state.clone();
+        tokio::spawn(async move {
+            crate::agents::wg::reconcile_peers(&reconcile_state).await;
+        });
+    }
+
+    // If no message arrives for 90 s (3× heartbeat interval), the underlying TCP
+    // connection is silently dead (e.g. iptables DROP on the agent side). Without this
+    // timer, is_connected() stays true indefinitely and the heartbeat scheduler skips
+    // the HTTP poll, so heartbeat_lost never fires.
+    const WS_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
+    let idle_deadline = tokio::time::sleep(WS_IDLE_TIMEOUT);
+    tokio::pin!(idle_deadline);
+
+    // Send timeout: if socket.send() blocks longer than WS_IDLE_TIMEOUT (e.g. TCP send
+    // buffer full because the agent's WG interface is gone), we must not block the select
+    // loop — the idle_deadline arm would never fire. Apply the same timeout to sends.
+    const WS_SEND_TIMEOUT: Duration = Duration::from_secs(30);
+
+    loop {
+        tokio::select! {
+            Some(msg) = rx.recv() => {
+                match tokio::time::timeout(WS_SEND_TIMEOUT, socket.send(msg)).await {
+                    Ok(Ok(())) => {}
+                    Ok(Err(_)) | Err(_) => break, // send error or timeout → dead connection
+                }
+            }
+            msg = socket.recv() => {
+                // Any inbound message resets the idle timer.
+                idle_deadline.as_mut().reset(tokio::time::Instant::now() + WS_IDLE_TIMEOUT);
+                match msg {
+                    Some(Ok(Message::Text(text))) => {
+                        if let Err(e) = handle_agent_message(&state, agent_id, &pending, text.as_str()).await {
+                            tracing::warn!(agent_id = %agent_id, error = %e, "WS message error");
+                        }
+                    }
+                    Some(Ok(Message::Ping(data))) => {
+                        let _ = socket.send(Message::Pong(data)).await;
+                    }
+                    Some(Ok(Message::Close(_))) | None => break,
+                    _ => {}
+                }
+            }
+            _ = &mut idle_deadline => {
+                tracing::warn!(agent_id = %agent_id, "WS idle timeout — no message in 90 s, closing connection");
+                break;
+            }
+        }
+    }
+
+    // Guard cleanup with ptr_eq to prevent a stale handle_socket from clearing a newer
+    // session's state. Race: old socket closes → new socket connects + inserts its conn
+    // → old cleanup runs and unconditionally removes the new conn → heartbeat_acks and
+    // metric fan-out silently stop for the new session, causing lockdown after 5 min.
+    //
+    // Under the write lock: if the stored entry is a DIFFERENT Arc, a newer session has
+    // already taken ownership — skip all cleanup (DB status, events, heartbeat_lost).
+    // If the entry is ours or missing, run cleanup normally.
+    let is_current_session = {
+        let mut conns = state.agent_ws_conns.write().await;
+        match conns.get(&agent_id) {
+            Some(stored) if Arc::ptr_eq(stored, &conn) => {
+                conns.remove(&agent_id);
+                true
+            }
+            // A newer session replaced our entry — skip all cleanup for this session.
+            Some(_) => false,
+            // Entry already gone (e.g., shutdown_notify_all) — still clean up DB/events.
+            None => true,
+        }
+    };
+
+    if is_current_session {
+        {
+            let mut map = state.agent_metric_tx.write().await;
+            if let Some(stored) = map.get(&agent_id) {
+                if Arc::ptr_eq(stored, &metric_tx) {
+                    map.remove(&agent_id);
+                }
+            }
+        }
+
+        let _ = sqlx::query!("UPDATE agents SET status='offline' WHERE id=$1", agent_id)
+            .execute(&state.db)
+            .await;
+
+        let event_id = Uuid::now_v7();
+        let _ = sqlx::query!(
+            "INSERT INTO agent_events (id, agent_id, event, detail) VALUES ($1, $2, 'disconnected', NULL)",
+            event_id, agent_id
+        )
+        .execute(&state.db)
+        .await;
+        broadcast_event(&state, agent_id, "disconnected", None);
+
+        let is_expected = sqlx::query_scalar!(
+            r#"
+            SELECT EXISTS(
+                SELECT 1 FROM agent_events
+                WHERE agent_id = $1
+                  AND event IN ('rebooting', 'updating')
+                  AND created_at > NOW() - INTERVAL '5 minutes'
+            ) AS "exists!"
+            "#,
+            agent_id
+        )
+        .fetch_one(&state.db)
+        .await
+        .unwrap_or(false);
+
+        if !is_expected {
+            let event_id = Uuid::now_v7();
+            let _ = sqlx::query!(
+                "INSERT INTO agent_events (id, agent_id, event, detail) VALUES ($1, $2, 'heartbeat_lost', NULL)",
+                event_id,
+                agent_id
+            )
+            .execute(&state.db)
+            .await;
+            broadcast_event(&state, agent_id, "heartbeat_lost", None);
+            crate::alerts::fire(&state, "heartbeat_lost", None, agent_id).await;
+            tracing::warn!(agent_id = %agent_id, "heartbeat lost — agent WS disconnected unexpectedly");
+        }
+
+        tracing::info!(agent_id = %agent_id, "agent WS disconnected");
+    } else {
+        tracing::debug!(agent_id = %agent_id, "agent WS session ended — newer session already registered, skipping cleanup");
+    }
+
+    // Always cancel this session's pending requests regardless of ownership.
+    {
+        let mut pending_map = pending.lock().await;
+        for (_, tx) in pending_map.drain() {
+            let _ = tx.send(json!({"ok": false, "error": "agent disconnected"}));
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct AgentMsg {
+    #[serde(rename = "type")]
+    msg_type: String,
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(flatten)]
+    data: Value,
+}
+
+async fn handle_agent_message(
+    state: &AppState,
+    agent_id: Uuid,
+    pending: &Arc<Mutex<HashMap<Uuid, oneshot::Sender<Value>>>>,
+    text: &str,
+) -> anyhow::Result<()> {
+    let msg: AgentMsg = serde_json::from_str(text)?;
+
+    match msg.msg_type.as_str() {
+        "heartbeat" => {
+            let status = msg
+                .data
+                .get("status")
+                .and_then(|v| v.as_str())
+                .unwrap_or("online");
+            let version = msg
+                .data
+                .get("version")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let arch = msg
+                .data
+                .get("arch")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            sqlx::query!(
+                "UPDATE agents SET status=$1, last_heartbeat=NOW(), version=$2, arch=$3 WHERE id=$4",
+                status,
+                version,
+                arch,
+                agent_id
+            )
+            .execute(&state.db)
+            .await?;
+
+            // Send heartbeat ACK so agent resets its lockdown timer.
+            // Fire-and-forget via direct mpsc send — must NOT use push_command here
+            // because push_command waits for a command_response, which would deadlock:
+            // handle_agent_message IS the receive loop, so the response can never be
+            // processed while we're blocked waiting for it.
+            let conn = state.agent_ws_conns.read().await.get(&agent_id).cloned();
+            if let Some(conn) = conn {
+                let ack = serde_json::json!({"type": "agent.heartbeat_ack"});
+                if let Ok(signed) =
+                    crate::crypto::cmd::sign_command_system(&state.config, agent_id, "read", &ack)
+                {
+                    if let Ok(signed_val) = serde_json::to_value(&signed) {
+                        let req_id = Uuid::now_v7();
+                        let envelope = serde_json::json!({
+                            "type": "command",
+                            "id": req_id,
+                            "payload": signed_val,
+                        });
+                        if let Ok(text) = serde_json::to_string(&envelope) {
+                            let _ = conn.sender.send(Message::Text(text.into()));
+                        }
+                    }
+                }
+            }
+        }
+        "command_response" => {
+            if let Some(id_str) = msg.id.as_deref() {
+                if let Ok(req_id) = Uuid::parse_str(id_str) {
+                    let mut map = pending.lock().await;
+                    if let Some(tx) = map.remove(&req_id) {
+                        // Pass the full response data (ok + error + body) so callers
+                        // can inspect ok/error when the command fails, not just body.
+                        let _ = tx.send(msg.data.clone());
+                    }
+                }
+            }
+        }
+        "metrics" => {
+            let shared = Arc::new(text.to_string());
+            let map = state.agent_metric_tx.read().await;
+            if let Some(tx) = map.get(&agent_id) {
+                // Ignore send errors — no subscribers is normal.
+                let _ = tx.send(shared);
+            }
+        }
+        "audit_sync" => {
+            if let Some(entries_val) = msg.data.get("entries") {
+                let entries: Vec<AuditSyncEntry> = serde_json::from_value(entries_val.clone())?;
+                store_audit_entries(state, agent_id, entries).await?;
+            }
+        }
+        other => {
+            tracing::debug!(agent_id = %agent_id, msg_type = other, "unhandled WS message type");
+        }
+    }
+
+    Ok(())
+}
+
+async fn store_audit_entries(
+    state: &AppState,
+    agent_id: Uuid,
+    entries: Vec<AuditSyncEntry>,
+) -> anyhow::Result<()> {
+    if entries.is_empty() {
+        return Ok(());
+    }
+
+    // Verify hash chain integrity before persisting: each entry's previous_hash must
+    // match the entry_hash of the entry immediately before it in the chain.
+    // Convention: first entry ever has previous_hash = "genesis".
+    let mut expected_prev: String = sqlx::query_scalar!(
+        "SELECT entry_hash FROM audit_log WHERE agent_id = $1 ORDER BY created_at DESC LIMIT 1",
+        agent_id
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .unwrap_or_else(|| "genesis".to_string());
+
+    // Sort entries by created_at to process in chronological order.
+    let mut ordered = entries.clone();
+    ordered.sort_by_key(|e| e.created_at);
+
+    for entry in &ordered {
+        if entry.agent_id != agent_id {
+            continue;
+        }
+
+        let chain_ok = entry.previous_hash == expected_prev;
+
+        if !chain_ok {
+            tracing::error!(
+                agent_id = %agent_id,
+                entry_id = %entry.id,
+                "audit_log hash chain mismatch — rejecting batch"
+            );
+            crate::alerts::fire(
+                state,
+                "audit_integrity_failure",
+                Some(format!(
+                    "agent={agent_id} entry={} hash chain mismatch — entries rejected",
+                    entry.id
+                )),
+                None::<Uuid>,
+            )
+            .await;
+            // Mark agent with the failure event.
+            let event_id = Uuid::now_v7();
+            let _ = sqlx::query!(
+                "INSERT INTO agent_events (id, agent_id, event, detail) VALUES ($1, $2, 'audit_integrity_failure', $3)",
+                event_id,
+                agent_id,
+                Some(format!("hash chain broken at entry {}", entry.id))
+            )
+            .execute(&state.db)
+            .await;
+            super::handlers::broadcast_event(state, agent_id, "audit_integrity_failure", None);
+            return Err(anyhow::anyhow!(
+                "audit hash chain mismatch for agent {agent_id}"
+            ));
+        }
+
+        expected_prev = entry.entry_hash.clone();
+    }
+
+    let mut tx = state.db.begin().await?;
+    for entry in &ordered {
+        if entry.agent_id != agent_id {
+            continue;
+        }
+        sqlx::query!(
+            r#"
+            INSERT INTO audit_log (
+                id, agent_id, organization_id, user_id, command_type,
+                result, error, previous_hash, entry_hash, created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            ON CONFLICT (id) DO NOTHING
+            "#,
+            entry.id,
+            entry.agent_id,
+            entry.organization_id,
+            entry.user_id,
+            entry.command_type,
+            entry.result,
+            entry.error,
+            entry.previous_hash,
+            entry.entry_hash,
+            entry.created_at,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
+    tracing::info!(agent_id = %agent_id, count = ordered.len(), "audit entries received via WS");
+    Ok(())
+}
+
+/// Push a signed command to a connected agent via WS.
+/// Returns `Some(response_body)` on success, `None` if no WS connection or timeout.
+pub async fn push_command(state: &AppState, agent_id: Uuid, signed_cmd: Value) -> Option<Value> {
+    let req_id = Uuid::now_v7();
+
+    let conn = {
+        let map = state.agent_ws_conns.read().await;
+        map.get(&agent_id).cloned()
+    }?;
+
+    let (tx, rx) = oneshot::channel();
+    {
+        let mut pending = conn.pending.lock().await;
+        pending.insert(req_id, tx);
+    }
+
+    let envelope = json!({
+        "type": "command",
+        "id": req_id,
+        "payload": signed_cmd,
+    });
+
+    let text = serde_json::to_string(&envelope).ok()?;
+    if conn.sender.send(Message::Text(text.into())).is_err() {
+        let mut pending = conn.pending.lock().await;
+        pending.remove(&req_id);
+        return None;
+    }
+
+    match tokio::time::timeout(Duration::from_secs(30), rx).await {
+        Ok(Ok(body)) => Some(body),
+        _ => {
+            let mut pending = conn.pending.lock().await;
+            pending.remove(&req_id);
+            None
+        }
+    }
+}
+
+/// Returns true if an agent currently has an active WS connection.
+pub async fn is_connected(state: &AppState, agent_id: Uuid) -> bool {
+    let map = state.agent_ws_conns.read().await;
+    map.contains_key(&agent_id)
+}
+
+/// On graceful shutdown (SIGTERM): mark all connected agents offline and fire
+/// heartbeat_lost for any that don't have a recent grace-period event.
+/// Called before process exit so the DB reflects reality across restarts.
+pub async fn shutdown_notify_all(state: &AppState) {
+    let agent_ids: Vec<Uuid> = {
+        let map = state.agent_ws_conns.read().await;
+        map.keys().copied().collect()
+    };
+
+    for agent_id in agent_ids {
+        let _ = sqlx::query!("UPDATE agents SET status='offline' WHERE id=$1", agent_id)
+            .execute(&state.db)
+            .await;
+
+        let is_expected = sqlx::query_scalar!(
+            r#"
+            SELECT EXISTS(
+                SELECT 1 FROM agent_events
+                WHERE agent_id = $1
+                  AND event IN ('rebooting', 'updating')
+                  AND created_at > NOW() - INTERVAL '5 minutes'
+            ) AS "exists!"
+            "#,
+            agent_id
+        )
+        .fetch_one(&state.db)
+        .await
+        .unwrap_or(false);
+
+        if !is_expected {
+            let event_id = Uuid::now_v7();
+            let _ = sqlx::query!(
+                "INSERT INTO agent_events (id, agent_id, event, detail) VALUES ($1, $2, 'heartbeat_lost', NULL)",
+                event_id,
+                agent_id
+            )
+            .execute(&state.db)
+            .await;
+            broadcast_event(state, agent_id, "heartbeat_lost", None);
+            crate::alerts::fire(state, "heartbeat_lost", None, agent_id).await;
+            tracing::warn!(agent_id = %agent_id, "heartbeat lost — backend shutting down");
+        }
+    }
+}
+
+/// Push current global rules to an agent that has pending unsynced entries.
+/// Called on WS connect — catches up agents that were offline during a global push.
+/// Sends both input chain (helmly-global) and output chain (helmly-global-output).
+async fn push_pending_global_sync(state: &AppState, agent_id: Uuid) {
+    let has_pending = sqlx::query_scalar!(
+        "SELECT 1 FROM global_rule_sync WHERE agent_id = $1 AND synced_at IS NULL LIMIT 1",
+        agent_id
+    )
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .is_some();
+
+    if !has_pending {
+        return;
+    }
+
+    let rules = match sqlx::query_as!(
+        crate::nftables::NftRule,
+        r#"
+        SELECT id, scope, agent_id, kind, port, port_end, protocol,
+               ip_list, ip_version, rate_per_min, description,
+               priority, enabled, direction, created_by, created_at, updated_at
+        FROM nftables_rules
+        WHERE scope = 'global' AND enabled = true
+        ORDER BY priority ASC, created_at ASC
+        "#
+    )
+    .fetch_all(&state.db)
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!(agent_id = %agent_id, error = %e, "pending_sync: failed to fetch global rules");
+            return;
+        }
+    };
+
+    let input_body = crate::nftables::rules_to_nft_chain(&rules);
+    let output_body = crate::nftables::rules_to_nft_output_chain(&rules);
+
+    let sign = |chain: &str, body: &str| {
+        crate::crypto::cmd::sign_command_system(
+            &state.config,
+            agent_id,
+            "write",
+            &serde_json::json!({
+                "type": "nftables.apply",
+                "chain": chain,
+                "rules": body,
+            }),
+        )
+    };
+
+    let (Ok(signed_in), Ok(signed_out)) = (
+        sign("helmly-global", &input_body),
+        sign("helmly-global-output", &output_body),
+    ) else {
+        tracing::warn!(agent_id = %agent_id, "pending_sync: sign failed");
+        return;
+    };
+
+    let in_val = serde_json::to_value(&signed_in).unwrap_or_default();
+    let out_val = serde_json::to_value(&signed_out).unwrap_or_default();
+
+    let sent_in = push_command(state, agent_id, in_val).await.is_some();
+    let sent_out = push_command(state, agent_id, out_val).await.is_some();
+
+    if sent_in && sent_out {
+        let _ = sqlx::query!(
+            "UPDATE global_rule_sync SET synced_at = NOW() WHERE agent_id = $1 AND synced_at IS NULL",
+            agent_id
+        )
+        .execute(&state.db)
+        .await;
+        tracing::info!(agent_id = %agent_id, "pending global rules synced on reconnect");
+    }
+}
